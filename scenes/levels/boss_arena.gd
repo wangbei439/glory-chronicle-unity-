@@ -1,6 +1,6 @@
-## 幽影矿井 Boss 战 - Alpha v0.8
+## 幽影矿井 Boss 战 - Beta v0.10
 ## 矿脉甲虫 vs 战士 完整战斗
-## v0.8新增：掉落系统、技能树效果、Boss掉落奖励
+## v0.10: 装备系统加成、版本号同步
 extends Node2D
 
 const GROUND_Y: float = 309.0
@@ -18,6 +18,7 @@ var camera: Node2D
 var audio: Node2D
 var drop_system: Node2D
 var skill_tree: Node2D
+var equipment: Node2D
 
 # 视觉节点
 var player_sprite: AnimatedSprite2D
@@ -171,9 +172,17 @@ func _build_scene() -> void:
         skill_tree.set_drop_system(drop_system)
         skill_tree.load_skill_data(GameState.skill_levels)
 
+        # === 装备系统 ===
+        var equip_script = load("res://scripts/ui/equipment.gd")
+        equipment = Node2D.new()
+        equipment.set_script(equip_script)
+        add_child(equipment)
+        equipment.build()
+        equipment.set_drop_system(drop_system)
+
         # 版本号
         var ver = Label.new()
-        ver.text = "v0.8"
+        ver.text = "v0.10"
         ver.position = Vector2(600, 350)
         ver.add_theme_font_size_override("font_size", 7)
         ver.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 0.6))
@@ -203,9 +212,23 @@ func _physics_process(delta: float) -> void:
                 skill_tree.process_input()
                 return
 
-        # Tab键打开技能树
+        # Tab键打开技能树/装备(Shift+Tab物品栏)
         if Input.is_key_pressed(KEY_TAB):
-                skill_tree.toggle()
+                if Input.is_key_pressed(KEY_SHIFT):
+                        # Shift+Tab 暂无物品栏在此场景
+                        pass
+                else:
+                        skill_tree.toggle()
+                return
+
+        # E键打开装备
+        if Input.is_key_pressed(KEY_E):
+                equipment.toggle()
+                return
+
+        # 装备面板打开时暂停
+        if equipment.is_open:
+                equipment.process_input()
                 return
 
         # Esc返回主菜单
@@ -343,7 +366,7 @@ func _check_combat_collisions() -> void:
         if warrior.is_in_active_frames() and not boss_hit_applied:
                 if dist < 80:
                         var base_dmg: float = warrior.get_attack_damage()
-                        var dmg: float = base_dmg * skill_tree.get_attack_bonus()
+                        var dmg: float = base_dmg * skill_tree.get_attack_bonus() * equipment.get_attack_bonus()
                         boss.take_damage(dmg)
                         warrior.mark_hit_dealt()
                         boss_hit_applied = true
@@ -380,7 +403,7 @@ func _check_combat_collisions() -> void:
         if boss.is_in_attack_state() and boss.is_attack_active() and not player_hit_applied:
                 if dist < 85:
                         var base_dmg: float = boss.get_attack_damage()
-                        var dmg: float = base_dmg * (1.0 - skill_tree.get_defense_bonus())
+                        var dmg: float = base_dmg * (1.0 - skill_tree.get_defense_bonus()) * (1.0 - equipment.get_defense_bonus())
                         var kb: Vector2 = boss.get_attack_knockback()
                         warrior.take_damage(dmg, kb)
                         if dmg > 0:
@@ -594,6 +617,8 @@ func _update_visuals() -> void:
 func _save_state() -> void:
         GameState.save_player_state(warrior.hp, warrior.rage, warrior.hit_count)
         GameState.save_resources(drop_system.ore_fragments, skill_tree.get_skill_data())
+        var pickup_counts: Dictionary = drop_system.get_pickup_counts()
+        GameState.save_pickup_counts(pickup_counts["ore_fragments"], pickup_counts["health_potions"], pickup_counts["rage_crystals"])
 
 func _take_screenshot(filename: String) -> void:
         var img = get_viewport().get_texture().get_image()

@@ -1,6 +1,7 @@
-## 掉落/拾取系统 - Alpha v0.8
+## 掉落/拾取系统 - Beta v0.10
 ## 敌人死亡后掉落物品，玩家走过去自动拾取
 ## 物品类型：生命药水、怒气水晶、矿石碎片
+## v0.10: 追踪药水/水晶拾取计数，修复存档同步
 extends Node2D
 
 # === 掉落物类型 ===
@@ -65,8 +66,10 @@ signal pickup_message(text: String, color: Color)
 # === 玩家引用 ===
 var player: Node2D = null
 
-# === 矿石碎片总数 ===
+# === 拾取计数 ===
 var ore_fragments: int = 0
+var health_potions: int = 0
+var rage_crystals: int = 0
 
 # === HUD引用 ===
 var hud: Node2D = null
@@ -226,6 +229,7 @@ func _on_pickup(index: int) -> void:
 
         match item_type:
                 ItemType.HEALTH_POTION:
+                        health_potions += 1
                         if player:
                                 var heal: float = 20.0
                                 player.hp = min(player.max_hp, player.hp + heal)
@@ -233,6 +237,7 @@ func _on_pickup(index: int) -> void:
                         msg = "+20 HP"
                         msg_color = Color(0.2, 0.9, 0.3)
                 ItemType.RAGE_CRYSTAL:
+                        rage_crystals += 1
                         if player:
                                 var rage_gain: float = 20.0
                                 player.rage = min(player.max_rage, player.rage + rage_gain)
@@ -259,6 +264,12 @@ func _on_pickup(index: int) -> void:
 func get_ore_count() -> int:
         return ore_fragments
 
+func get_potion_count() -> int:
+        return health_potions
+
+func get_crystal_count() -> int:
+        return rage_crystals
+
 func add_ore(count: int) -> void:
         ore_fragments += count
 
@@ -267,6 +278,20 @@ func spend_ore(count: int) -> bool:
                 ore_fragments -= count
                 return true
         return false
+
+func set_pickup_counts(ore: int, potions: int, crystals: int) -> void:
+        """从存档恢复拾取计数"""
+        ore_fragments = ore
+        health_potions = potions
+        rage_crystals = crystals
+
+func get_pickup_counts() -> Dictionary:
+        """获取所有拾取计数用于存档"""
+        return {
+                "ore_fragments": ore_fragments,
+                "health_potions": health_potions,
+                "rage_crystals": rage_crystals,
+        }
 
 func clear_all() -> void:
         for drop in drops:

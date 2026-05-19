@@ -1,9 +1,9 @@
 ; Engine configuration file.
-; Project: 《代号：传说》 Alpha v0.9
+; Project: 《代号：传说》 Beta v0.10
 
 [application]
 
-config/name="Legend Alpha"
+config/name="Legend Beta"
 run/main_scene="res://scenes/menus/title_screen.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 
