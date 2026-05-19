@@ -4,7 +4,7 @@
 [application]
 
 config/name="Legend Alpha"
-run/main_scene="res://scenes/levels/training_ground.tscn"
+run/main_scene="res://scenes/levels/boss_arena.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 
 [display]

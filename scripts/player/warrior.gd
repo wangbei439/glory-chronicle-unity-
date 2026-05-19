@@ -1,0 +1,318 @@
+## 战士玩家控制器
+## 处理输入、移动、连招、格挡、怒气
+extends Node2D
+
+signal attack_hit(target: Node2D, damage: float, knockback: Vector2)
+signal parry_success(is_perfect: bool)
+signal rage_changed(value: float)
+signal health_changed(value: float)
+signal died
+
+# === 属性 ===
+@export var max_hp: float = 100.0
+@export var max_rage: float = 100.0
+@export var move_speed: float = 280.0
+@export var jump_force: float = -450.0
+@export var gravity: float = 980.0
+
+# === 状态 ===
+var hp: float = 100.0
+var rage: float = 0.0
+var pos: Vector2 = Vector2(125, 309)
+var vel: Vector2 = Vector2.ZERO
+var facing: float = 1.0
+var is_attacking: bool = false
+var attack_frame: int = 0
+var attack_duration: int = 20
+var attack_name: String = ""
+var is_guarding: bool = false
+var is_perfect_parry_window: bool = false
+var parry_window_timer: float = 0.0
+var is_hurt: bool = false
+var hurt_timer: float = 0.0
+var invincible_timer: float = 0.0
+
+# 连招
+var combo_sequence: Array = []
+var combo_count: int = 0
+var combo_timer: float = 0.0
+var combo_tree: Dictionary = {}
+
+# 视觉
+var sprite: AnimatedSprite2D
+var parry_indicator: ColorRect
+var current_anim: String = "idle"
+
+func _ready() -> void:
+	_build_combo_tree()
+
+func _build_combo_tree() -> void:
+	combo_tree["L"] = {"name": "横斩", "mult": 1.0, "rage": 5, "dur": 20, "kb": Vector2(3, -1)}
+	combo_tree["L,L"] = {"name": "逆斩", "mult": 1.2, "rage": 5, "dur": 20, "kb": Vector2(3, -1)}
+	combo_tree["L,L,L"] = {"name": "回旋斩", "mult": 1.8, "rage": 10, "dur": 25, "kb": Vector2(5, -2)}
+	combo_tree["L,L,H"] = {"name": "上挑", "mult": 1.5, "rage": 8, "dur": 25, "kb": Vector2(2, -6)}
+	combo_tree["L,L,DH"] = {"name": "下砸", "mult": 2.0, "rage": 10, "dur": 30, "kb": Vector2(0, 8)}
+	combo_tree["L,H"] = {"name": "冲刺斩", "mult": 1.3, "rage": 7, "dur": 18, "kb": Vector2(8, -1)}
+	combo_tree["H"] = {"name": "重击", "mult": 2.5, "rage": 8, "dur": 28, "kb": Vector2(6, -2)}
+	combo_tree["H,L"] = {"name": "追击斩", "mult": 1.5, "rage": 6, "dur": 15, "kb": Vector2(4, -1)}
+
+func setup_sprite(animated_sprite: AnimatedSprite2D) -> void:
+	sprite = animated_sprite
+	_build_animations()
+
+func _build_animations() -> void:
+	if not sprite:
+		return
+	var sf = SpriteFrames.new()
+	
+	var anims = {
+		"idle": {"path": "warrior_idle_sheet.png", "frames": 4, "speed": 8.0, "loop": true},
+		"run": {"path": "warrior_run_sheet.png", "frames": 4, "speed": 10.0, "loop": true},
+		"attack": {"path": "warrior_attack_sheet.png", "frames": 4, "speed": 10.0, "loop": false},
+		"guard": {"path": "warrior_guard_sheet.png", "frames": 2, "speed": 6.0, "loop": true},
+		"jump": {"path": "warrior_jump_sheet.png", "frames": 2, "speed": 4.0, "loop": false},
+		"hurt": {"path": "warrior_hurt_sheet.png", "frames": 2, "speed": 8.0, "loop": false},
+		"war_cry": {"path": "warrior_war_cry_sheet.png", "frames": 2, "speed": 6.0, "loop": false},
+		"earth_shatter": {"path": "warrior_earth_shatter_sheet.png", "frames": 2, "speed": 6.0, "loop": false},
+	}
+	
+	for anim_name: String in anims:
+		var info: Dictionary = anims[anim_name]
+		var tex = load("res://assets/sprites/player/" + info["path"])
+		if not tex:
+			continue
+		sf.add_animation(anim_name)
+		sf.set_animation_speed(anim_name, info["speed"])
+		sf.set_animation_loop(anim_name, info["loop"])
+		var count: int = info["frames"]
+		var sheet_w: int = count * 64
+		for i in range(count):
+			var atlas = AtlasTexture.new()
+			atlas.atlas = tex
+			atlas.region = Rect2(i * 64, 0, 64, 64)
+			atlas.filter_clip = true
+			sf.add_frame(anim_name, atlas)
+	
+	# 回退
+	if not sf.has_animation("idle"):
+		sf.add_animation("idle")
+		var fb = load("res://assets/sprites/player/warrior_idle_64.png")
+		if fb:
+			sf.add_frame("idle", fb)
+	
+	sprite.sprite_frames = sf
+	sprite.play("idle")
+
+func play_anim(anim_name: String) -> void:
+	if current_anim == anim_name:
+		return
+	current_anim = anim_name
+	if sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation(anim_name):
+		sprite.play(anim_name)
+
+func process(delta: float, ground_y: float) -> void:
+	# 无敌帧
+	if invincible_timer > 0:
+		invincible_timer -= delta
+	
+	# 受击恢复
+	if is_hurt:
+		hurt_timer -= delta
+		if hurt_timer <= 0:
+			is_hurt = false
+	
+	# 连招超时
+	if combo_timer > 0:
+		combo_timer -= delta
+		if combo_timer <= 0:
+			combo_sequence.clear()
+			combo_count = 0
+	
+	# 格挡窗口
+	if is_perfect_parry_window:
+		parry_window_timer -= delta
+		if parry_window_timer <= 0:
+			is_perfect_parry_window = false
+			if parry_indicator:
+				parry_indicator.visible = false
+	
+	# 受击中不能操作
+	if is_hurt:
+		vel.x = lerp(vel.x, 0.0, 0.1)
+		_apply_physics(delta, ground_y)
+		return
+	
+	# 攻击中
+	if is_attacking:
+		attack_frame += 1
+		vel.x = lerp(vel.x, 0.0, 0.12)
+		if attack_frame >= attack_duration:
+			is_attacking = false
+			attack_frame = 0
+			attack_name = ""
+			play_anim("idle")
+	
+	# 格挡
+	if is_guarding:
+		vel.x = 0
+		play_anim("guard")
+		_apply_physics(delta, ground_y)
+		return
+	
+	# 移动
+	var is_moving = false
+	if Input.is_action_pressed("move_right"):
+		vel.x = move_speed
+		facing = 1.0
+		is_moving = true
+	elif Input.is_action_pressed("move_left"):
+		vel.x = -move_speed
+		facing = -1.0
+		is_moving = true
+	else:
+		vel.x = lerp(vel.x, 0.0, 0.2)
+	
+	# 动画
+	if not is_attacking:
+		if pos.y < ground_y - 3:
+			play_anim("jump")
+		elif is_moving:
+			play_anim("run")
+		else:
+			play_anim("idle")
+	
+	# 跳跃
+	if Input.is_action_just_pressed("jump") and pos.y >= ground_y - 3:
+		vel.y = jump_force
+	
+	# 攻击
+	if Input.is_action_just_pressed("attack"):
+		do_attack("L")
+	elif Input.is_action_just_pressed("heavy_attack"):
+		do_attack("H")
+	
+	# 格挡
+	if Input.is_action_just_pressed("guard"):
+		is_guarding = true
+		is_perfect_parry_window = true
+		parry_window_timer = 0.1
+		if parry_indicator:
+			parry_indicator.visible = true
+			parry_indicator.color = Color(0.5, 0.8, 1.0, 0.5)
+	
+	if Input.is_action_just_released("guard"):
+		is_guarding = false
+		is_perfect_parry_window = false
+		if parry_indicator:
+			parry_indicator.visible = false
+	
+	# 技能
+	if Input.is_action_just_pressed("skill_1") and rage >= 50:
+		rage -= 50
+		play_anim("war_cry")
+		rage_changed.emit(rage)
+	
+	if Input.is_action_just_pressed("ultimate") and rage >= 100:
+		rage = 0
+		play_anim("earth_shatter")
+		rage_changed.emit(rage)
+	
+	_apply_physics(delta, ground_y)
+
+func _apply_physics(delta: float, ground_y: float) -> void:
+	if pos.y < ground_y:
+		vel.y += gravity * delta
+	pos += vel * delta
+	if pos.y > ground_y:
+		pos.y = ground_y
+		vel.y = 0
+
+func do_attack(input_key: String) -> void:
+	if is_attacking:
+		return
+	combo_sequence.append(input_key)
+	combo_timer = 1.0
+	
+	var key = ",".join(combo_sequence)
+	var combo_data = null
+	if combo_tree.has(key):
+		combo_data = combo_tree[key]
+	else:
+		combo_sequence = [input_key]
+		key = input_key
+		if combo_tree.has(key):
+			combo_data = combo_tree[key]
+	
+	if combo_data == null:
+		combo_sequence.clear()
+		return
+	
+	attack_name = combo_data["name"]
+	attack_duration = combo_data["dur"]
+	is_attacking = true
+	attack_frame = 0
+	combo_count += 1
+	play_anim("attack")
+	
+	# 完美判定
+	var is_perfect = is_perfect_parry_window or randf() < 0.2
+	
+	# 怒气
+	var rage_gain: float = combo_data["rage"]
+	if is_perfect:
+		rage_gain *= 1.5
+	rage = min(max_rage, rage + rage_gain)
+	rage_changed.emit(rage)
+	
+	# 伤害
+	var dmg: float = 10.0 * combo_data["mult"]
+	if is_perfect:
+		dmg *= 1.3
+	
+	# 击退
+	var kb: Vector2 = combo_data["kb"] * Vector2(facing, 1)
+	
+	# 通知场景攻击命中
+	attack_hit.emit(null, dmg, kb)
+	
+	return
+
+func take_damage(dmg: float, knockback: Vector2) -> void:
+	if invincible_timer > 0:
+		return
+	
+	# 格挡判定
+	if is_guarding:
+		if is_perfect_parry_window:
+			# 完美格挡：0伤害 + 反击窗口
+			parry_success.emit(true)
+			dmg = 0
+			knockback = Vector2.ZERO
+		else:
+			# 普通格挡：50%减伤
+			dmg *= 0.5
+			knockback *= 0.3
+			parry_success.emit(false)
+	
+	hp = max(0, hp - dmg)
+	health_changed.emit(hp)
+	
+	if dmg > 0:
+		is_hurt = true
+		hurt_timer = 0.3
+		invincible_timer = 0.5
+		vel = knockback * 50
+		play_anim("hurt")
+		
+		if hp <= 0:
+			died.emit()
+
+func get_attack_info() -> Dictionary:
+	var key = ",".join(combo_sequence) if combo_sequence.size() > 0 else ""
+	var info = combo_tree.get(key, {})
+	return {
+		"name": attack_name,
+		"is_attacking": is_attacking,
+		"combo_count": combo_count,
+		"damage_mult": info.get("mult", 1.0) if info else 1.0,
+	}
