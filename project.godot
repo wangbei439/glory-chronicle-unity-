@@ -1,11 +1,15 @@
 ; Engine configuration file.
-; Project: 《代号：传说》 Alpha Prototype
+; Project: 《代号：传说》 Alpha v0.7
 
 [application]
 
 config/name="Legend Alpha"
-run/main_scene="res://scenes/levels/boss_arena.tscn"
+run/main_scene="res://scenes/menus/title_screen.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
+
+[autoload]
+
+GameState="*res://scripts/core/game_state.gd"
 
 [display]
 
