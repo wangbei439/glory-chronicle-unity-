@@ -1,5 +1,6 @@
-## HUD 系统
+## HUD 系统 - Alpha v0.5
 ## 显示玩家HP/怒气、Boss HP、连招、技能状态、伤害数字
+## 新增：预警指示器、连击计数、战吼buff显示
 extends Node2D
 
 # 玩家HUD
@@ -18,6 +19,12 @@ var boss_phase_label: Label
 var combo_label: Label
 var perfect_label: Label
 var hit_effects: Array = []
+
+# === Alpha v0.5 新增 ===
+var hit_count_label: Label       # 连击计数
+var war_cry_indicator: ColorRect # 战吼buff指示
+var telegraph_indicator: Label   # Boss攻击预警
+var telegraph_bg: ColorRect      # 预警背景
 
 var frame_count: int = 0
 
@@ -74,6 +81,13 @@ func _build_player_hud() -> void:
 	skill_label_2.add_theme_font_size_override("font_size", 7)
 	skill_label_2.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 0.7))
 	add_child(skill_label_2)
+	
+	# 战吼buff指示器
+	war_cry_indicator = ColorRect.new()
+	war_cry_indicator.size = Vector2(40, 6)
+	war_cry_indicator.position = Vector2(10, 49)
+	war_cry_indicator.color = Color(1, 0.7, 0.2, 0.0)  # 默认隐藏
+	add_child(war_cry_indicator)
 
 func _build_boss_hud() -> void:
 	# Boss HP条（屏幕顶部居中）
@@ -117,6 +131,14 @@ func _build_combat_hud() -> void:
 	combo_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
 	add_child(combo_label)
 	
+	# 连击计数
+	hit_count_label = Label.new()
+	hit_count_label.position = Vector2(550, 50)
+	hit_count_label.add_theme_font_size_override("font_size", 18)
+	hit_count_label.add_theme_color_override("font_color", Color(1, 0.9, 0.3, 0.9))
+	hit_count_label.visible = false
+	add_child(hit_count_label)
+	
 	# 完美判定
 	perfect_label = Label.new()
 	perfect_label.position = Vector2(250, 140)
@@ -124,6 +146,21 @@ func _build_combat_hud() -> void:
 	perfect_label.add_theme_color_override("font_color", Color(1, 0.9, 0.2, 1))
 	perfect_label.visible = false
 	add_child(perfect_label)
+	
+	# Boss攻击预警指示器
+	telegraph_bg = ColorRect.new()
+	telegraph_bg.size = Vector2(30, 16)
+	telegraph_bg.position = Vector2(0, 0)
+	telegraph_bg.color = Color(1, 0.2, 0.1, 0.0)
+	telegraph_bg.visible = false
+	add_child(telegraph_bg)
+	
+	telegraph_indicator = Label.new()
+	telegraph_indicator.position = Vector2(0, 0)
+	telegraph_indicator.add_theme_font_size_override("font_size", 12)
+	telegraph_indicator.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+	telegraph_indicator.visible = false
+	add_child(telegraph_indicator)
 
 func update_player_hp(current: float, maximum: float) -> void:
 	if hp_fill:
@@ -197,12 +234,74 @@ func show_perfect(text: String, color: Color) -> void:
 		tween.tween_property(perfect_label, "modulate:a", 0, 0.8)
 		tween.tween_callback(func(): perfect_label.visible = false; perfect_label.modulate.a = 1)
 
+func update_hit_count(count: int) -> void:
+	"""更新连击计数显示"""
+	if hit_count_label:
+		if count >= 2:
+			hit_count_label.visible = true
+			hit_count_label.text = str(count) + " HIT"
+			# 根据连击数变色
+			if count >= 20:
+				hit_count_label.add_theme_color_override("font_color", Color(1, 0.2, 0.1, 1))
+			elif count >= 10:
+				hit_count_label.add_theme_color_override("font_color", Color(1, 0.6, 0.1, 1))
+			elif count >= 5:
+				hit_count_label.add_theme_color_override("font_color", Color(1, 0.9, 0.3, 1))
+			else:
+				hit_count_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.9))
+		else:
+			hit_count_label.visible = false
+
+func show_telegraph(attack_type: String, boss_pos: Vector2, facing: float, warning_level: int) -> void:
+	"""显示Boss攻击预警"""
+	if not telegraph_indicator or not telegraph_bg:
+		return
+	telegraph_indicator.visible = true
+	telegraph_bg.visible = true
+	
+	# 预警位置：Boss头顶
+	var indicator_pos: Vector2 = boss_pos + Vector2(-15 + (-20 * facing), -55)
+	telegraph_indicator.position = indicator_pos
+	telegraph_bg.position = indicator_pos + Vector2(-2, -1)
+	
+	# 根据攻击类型设置文字
+	telegraph_indicator.text = attack_type
+	
+	# 根据危险等级设置颜色
+	if warning_level >= 2:
+		telegraph_indicator.add_theme_color_override("font_color", Color(1, 0.2, 0.1, 1))
+		telegraph_bg.color = Color(1, 0.1, 0.05, 0.6)
+	else:
+		telegraph_indicator.add_theme_color_override("font_color", Color(1, 0.8, 0.2, 1))
+		telegraph_bg.color = Color(0.8, 0.6, 0.1, 0.4)
+
+func hide_telegraph() -> void:
+	"""隐藏预警"""
+	if telegraph_indicator:
+		telegraph_indicator.visible = false
+	if telegraph_bg:
+		telegraph_bg.visible = false
+
+func show_war_cry_buff(active: bool, timer: float = 0) -> void:
+	"""显示战吼buff状态"""
+	if war_cry_indicator:
+		if active:
+			war_cry_indicator.color = Color(1, 0.7, 0.2, 0.8)
+			# buff剩余比例
+			var ratio = timer / 8.0
+			war_cry_indicator.size.x = 40 * ratio
+		else:
+			war_cry_indicator.color = Color(1, 0.7, 0.2, 0.0)
+
 func spawn_damage_number(pos: Vector2, damage: float, is_crit: bool = false) -> void:
 	var dmg_label = Label.new()
 	dmg_label.text = str(int(damage))
 	dmg_label.position = pos + Vector2(randf_range(-10, 10), -20)
 	dmg_label.add_theme_font_size_override("font_size", 14 if is_crit else 10)
-	dmg_label.add_theme_color_override("font_color", Color(1, 0.3, 0.1) if is_crit else Color(1, 1, 1))
+	if is_crit:
+		dmg_label.add_theme_color_override("font_color", Color(1, 0.85, 0.1))
+	else:
+		dmg_label.add_theme_color_override("font_color", Color(1, 1, 1))
 	add_child(dmg_label)
 	hit_effects.append({"node": dmg_label, "life": 0.8, "vel": Vector2(randf_range(-15, 15), -40)})
 

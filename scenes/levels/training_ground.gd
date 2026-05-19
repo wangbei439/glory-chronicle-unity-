@@ -1,5 +1,5 @@
-## 训练场 - Alpha v0.3
-## 透明背景像素精灵图 + AnimatedSprite2D 动画系统
+## 训练场 - Alpha v0.5
+## 打击感增强版 + 连击计数 + 判定帧 + 粒子特效
 extends Node2D
 
 # === 战士状态 ===
@@ -15,15 +15,25 @@ var guard_flash: float = 0.0
 var is_perfect_parry_window: bool = false
 var parry_window_timer: float = 0.0
 
+# 攻击判定帧
+enum AttackPhase { STARTUP, ACTIVE, RECOVERY }
+var attack_phase: AttackPhase = AttackPhase.STARTUP
+var attack_startup_frames: int = 4
+var attack_active_frames: int = 6
+var attack_hit_dealt: bool = false
+
 # === 连招系统 ===
 var combo_sequence: Array = []
 var combo_count: int = 0
 var combo_timer: float = 0.0
 var combo_tree: Dictionary = {}
+var hit_count: int = 0
 
 # === 怒气 ===
 var rage: float = 0.0
 var max_rage: float = 100.0
+var war_cry_buff: bool = false
+var war_cry_timer: float = 0.0
 
 # === 视觉节点 ===
 var player_sprite: AnimatedSprite2D
@@ -32,6 +42,13 @@ var parry_indicator: ColorRect
 # 木桩
 var dummies: Array = []
 
+# 打击感
+var effects_node: Node2D  # 打击感特效
+var camera_offset: Vector2 = Vector2.ZERO
+var hitstop_timer: float = 0.0
+var shake_intensity: float = 0.0
+var particles: Array = []
+
 # HUD
 var hp_fill: ColorRect
 var rage_fill: ColorRect
@@ -39,6 +56,7 @@ var combo_label: Label
 var perfect_label: Label
 var skill_label_1: Label
 var skill_label_2: Label
+var hit_count_label: Label
 var hit_effects: Array = []
 
 var frame_count: int = 0
@@ -49,18 +67,18 @@ func _ready() -> void:
 	_build_scene()
 
 func _build_combo_tree() -> void:
-	combo_tree["L"] = {"name": "横斩", "mult": 1.0, "rage": 5, "dur": 20}
-	combo_tree["L,L"] = {"name": "逆斩", "mult": 1.2, "rage": 5, "dur": 20}
-	combo_tree["L,L,L"] = {"name": "回旋斩", "mult": 1.8, "rage": 10, "dur": 25}
-	combo_tree["L,L,H"] = {"name": "上挑", "mult": 1.5, "rage": 8, "dur": 25}
-	combo_tree["L,L,DH"] = {"name": "下砸", "mult": 2.0, "rage": 10, "dur": 30}
-	combo_tree["L,H"] = {"name": "冲刺斩", "mult": 1.3, "rage": 7, "dur": 18}
-	combo_tree["H"] = {"name": "重击", "mult": 2.5, "rage": 8, "dur": 28}
-	combo_tree["H,L"] = {"name": "追击斩", "mult": 1.5, "rage": 6, "dur": 15}
+	combo_tree["L"] = {"name": "横斩", "mult": 1.0, "rage": 5, "dur": 20, "startup": 4, "active": 6}
+	combo_tree["L,L"] = {"name": "逆斩", "mult": 1.2, "rage": 5, "dur": 18, "startup": 3, "active": 5}
+	combo_tree["L,L,L"] = {"name": "回旋斩", "mult": 1.8, "rage": 10, "dur": 25, "startup": 5, "active": 8}
+	combo_tree["L,L,H"] = {"name": "上挑", "mult": 1.5, "rage": 8, "dur": 25, "startup": 4, "active": 6}
+	combo_tree["L,L,DH"] = {"name": "下砸", "mult": 2.0, "rage": 10, "dur": 30, "startup": 6, "active": 8}
+	combo_tree["L,H"] = {"name": "冲刺斩", "mult": 1.3, "rage": 7, "dur": 18, "startup": 2, "active": 6}
+	combo_tree["H"] = {"name": "重击", "mult": 2.5, "rage": 8, "dur": 28, "startup": 8, "active": 6}
+	combo_tree["H,L"] = {"name": "追击斩", "mult": 1.5, "rage": 6, "dur": 15, "startup": 2, "active": 5}
 
 func _build_scene() -> void:
-	# 背景 - 地下矿井
-	var bg_tex = load("res://assets/sprites/background/dungeon_mine_720p.png")
+	# 背景
+	var bg_tex = load("res://assets/sprites/background/dungeon_mine_640x360.png")
 	if bg_tex:
 		var bg = TextureRect.new()
 		bg.texture = bg_tex
@@ -99,13 +117,16 @@ func _build_scene() -> void:
 	p2.color = Color(0.25, 0.27, 0.3, 0.8)
 	add_child(p2)
 	
-	# === 玩家 - 使用 AnimatedSprite2D ===
+	# 打击感特效节点
+	effects_node = Node2D.new()
+	add_child(effects_node)
+	
+	# === 玩家 ===
 	player_sprite = AnimatedSprite2D.new()
 	_build_player_animations()
 	player_sprite.play("idle")
 	add_child(player_sprite)
 	
-	# 格挡指示器
 	parry_indicator = ColorRect.new()
 	parry_indicator.size = Vector2(20, 20)
 	parry_indicator.color = Color(0.5, 0.8, 1.0, 0.4)
@@ -121,91 +142,33 @@ func _build_scene() -> void:
 	_build_hud()
 
 func _build_player_animations() -> void:
-	# 加载各动画精灵图表并创建 SpriteFrames
 	var sprite_frames = SpriteFrames.new()
 	
-	# idle: 4帧 256x64 -> hframes=4
-	var idle_tex = load("res://assets/sprites/player/warrior_idle_sheet.png")
-	if idle_tex:
-		sprite_frames.add_animation("idle")
-		sprite_frames.set_animation_speed("idle", 8.0)
-		sprite_frames.set_animation_loop("idle", true)
-		for i in range(4):
-			var frame_tex = _extract_frame(idle_tex, 256, 64, 4, i)
-			sprite_frames.add_frame("idle", frame_tex)
+	var anims = {
+		"idle": {"path": "warrior_idle_sheet.png", "frames": 4, "speed": 8.0, "loop": true},
+		"run": {"path": "warrior_run_sheet.png", "frames": 4, "speed": 10.0, "loop": true},
+		"attack": {"path": "warrior_attack_sheet.png", "frames": 4, "speed": 10.0, "loop": false},
+		"guard": {"path": "warrior_guard_sheet.png", "frames": 2, "speed": 6.0, "loop": true},
+		"jump": {"path": "warrior_jump_sheet.png", "frames": 2, "speed": 4.0, "loop": false},
+		"hurt": {"path": "warrior_hurt_sheet.png", "frames": 2, "speed": 8.0, "loop": false},
+		"war_cry": {"path": "warrior_war_cry_sheet.png", "frames": 2, "speed": 6.0, "loop": false},
+		"earth_shatter": {"path": "warrior_earth_shatter_sheet.png", "frames": 2, "speed": 6.0, "loop": false},
+	}
 	
-	# run: 4帧
-	var run_tex = load("res://assets/sprites/player/warrior_run_sheet.png")
-	if run_tex:
-		sprite_frames.add_animation("run")
-		sprite_frames.set_animation_speed("run", 10.0)
-		sprite_frames.set_animation_loop("run", true)
-		for i in range(4):
-			var frame_tex = _extract_frame(run_tex, 256, 64, 4, i)
-			sprite_frames.add_frame("run", frame_tex)
+	for anim_name: String in anims:
+		var info: Dictionary = anims[anim_name]
+		var tex = load("res://assets/sprites/player/" + info["path"])
+		if not tex:
+			continue
+		sprite_frames.add_animation(anim_name)
+		sprite_frames.set_animation_speed(anim_name, info["speed"])
+		sprite_frames.set_animation_loop(anim_name, info["loop"])
+		var count: int = info["frames"]
+		for i in range(count):
+			var frame_tex = _extract_frame(tex, count * 64, 64, count, i)
+			sprite_frames.add_frame(anim_name, frame_tex)
 	
-	# attack: 4帧
-	var attack_tex = load("res://assets/sprites/player/warrior_attack_sheet.png")
-	if attack_tex:
-		sprite_frames.add_animation("attack")
-		sprite_frames.set_animation_speed("attack", 10.0)
-		sprite_frames.set_animation_loop("attack", false)
-		for i in range(4):
-			var frame_tex = _extract_frame(attack_tex, 256, 64, 4, i)
-			sprite_frames.add_frame("attack", frame_tex)
-	
-	# guard: 2帧
-	var guard_tex = load("res://assets/sprites/player/warrior_guard_sheet.png")
-	if guard_tex:
-		sprite_frames.add_animation("guard")
-		sprite_frames.set_animation_speed("guard", 6.0)
-		sprite_frames.set_animation_loop("guard", true)
-		for i in range(2):
-			var frame_tex = _extract_frame(guard_tex, 128, 64, 2, i)
-			sprite_frames.add_frame("guard", frame_tex)
-	
-	# jump: 2帧
-	var jump_tex = load("res://assets/sprites/player/warrior_jump_sheet.png")
-	if jump_tex:
-		sprite_frames.add_animation("jump")
-		sprite_frames.set_animation_speed("jump", 4.0)
-		sprite_frames.set_animation_loop("jump", false)
-		for i in range(2):
-			var frame_tex = _extract_frame(jump_tex, 128, 64, 2, i)
-			sprite_frames.add_frame("jump", frame_tex)
-	
-	# hurt: 2帧
-	var hurt_tex = load("res://assets/sprites/player/warrior_hurt_sheet.png")
-	if hurt_tex:
-		sprite_frames.add_animation("hurt")
-		sprite_frames.set_animation_speed("hurt", 8.0)
-		sprite_frames.set_animation_loop("hurt", false)
-		for i in range(2):
-			var frame_tex = _extract_frame(hurt_tex, 128, 64, 2, i)
-			sprite_frames.add_frame("hurt", frame_tex)
-	
-	# war_cry: 2帧
-	var war_cry_tex = load("res://assets/sprites/player/warrior_war_cry_sheet.png")
-	if war_cry_tex:
-		sprite_frames.add_animation("war_cry")
-		sprite_frames.set_animation_speed("war_cry", 6.0)
-		sprite_frames.set_animation_loop("war_cry", false)
-		for i in range(2):
-			var frame_tex = _extract_frame(war_cry_tex, 128, 64, 2, i)
-			sprite_frames.add_frame("war_cry", frame_tex)
-	
-	# earth_shatter: 2帧
-	var es_tex = load("res://assets/sprites/player/warrior_earth_shatter_sheet.png")
-	if es_tex:
-		sprite_frames.add_animation("earth_shatter")
-		sprite_frames.set_animation_speed("earth_shatter", 6.0)
-		sprite_frames.set_animation_loop("earth_shatter", false)
-		for i in range(2):
-			var frame_tex = _extract_frame(es_tex, 128, 64, 2, i)
-			sprite_frames.add_frame("earth_shatter", frame_tex)
-	
-	# 回退：使用单帧idle
-	if not idle_tex:
+	if not sprite_frames.has_animation("idle"):
 		sprite_frames.add_animation("idle")
 		var fallback = load("res://assets/sprites/player/warrior_idle_64.png")
 		if fallback:
@@ -214,7 +177,6 @@ func _build_player_animations() -> void:
 	player_sprite.sprite_frames = sprite_frames
 
 func _extract_frame(tex: Texture2D, sheet_w: int, sheet_h: int, hframes: int, frame_idx: int) -> AtlasTexture:
-	"""从精灵图表中提取单帧作为 AtlasTexture"""
 	var atlas = AtlasTexture.new()
 	atlas.atlas = tex
 	var frame_w: float = sheet_w / hframes
@@ -257,7 +219,7 @@ func _build_hud() -> void:
 	hp_fill.color = Color(0.85, 0.15, 0.1, 1.0)
 	add_child(hp_fill)
 	
-	# 怒气背景
+	# 怒气
 	var rage_bg = ColorRect.new()
 	rage_bg.size = Vector2(125, 8)
 	rage_bg.position = Vector2(10, 21)
@@ -270,7 +232,6 @@ func _build_hud() -> void:
 	rage_fill.color = Color(0.9, 0.6, 0.1, 1.0)
 	add_child(rage_fill)
 	
-	# 怒气50标记
 	var mark50 = ColorRect.new()
 	mark50.size = Vector2(1, 7)
 	mark50.position = Vector2(72, 21)
@@ -299,6 +260,14 @@ func _build_hud() -> void:
 	combo_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
 	add_child(combo_label)
 	
+	# 连击计数
+	hit_count_label = Label.new()
+	hit_count_label.position = Vector2(550, 50)
+	hit_count_label.add_theme_font_size_override("font_size", 18)
+	hit_count_label.add_theme_color_override("font_color", Color(1, 0.9, 0.3, 0.9))
+	hit_count_label.visible = false
+	add_child(hit_count_label)
+	
 	# 完美判定
 	perfect_label = Label.new()
 	perfect_label.position = Vector2(250, 140)
@@ -317,7 +286,7 @@ func _build_hud() -> void:
 	
 	# 版本号
 	var ver = Label.new()
-	ver.text = "v0.3"
+	ver.text = "v0.5"
 	ver.position = Vector2(590, 5)
 	ver.add_theme_font_size_override("font_size", 7)
 	ver.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 0.6))
@@ -325,26 +294,52 @@ func _build_hud() -> void:
 	
 	# 操作提示
 	var hint = Label.new()
-	hint.text = "A/D:移动 W/Space:跳跃 J:轻攻 K:重攻 L:格挡 U:战吼 I:终极"
-	hint.position = Vector2(100, 350)
+	hint.text = "A/D:移动 W/Space:跳跃 J:轻攻 K:重攻 L:格挡 U:战吼 I:终极 [R]Boss战"
+	hint.position = Vector2(80, 350)
 	hint.add_theme_font_size_override("font_size", 7)
 	hint.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55, 0.7))
 	add_child(hint)
 
 func _physics_process(delta: float) -> void:
 	frame_count += 1
+	
+	# Hitstop
+	if hitstop_timer > 0:
+		hitstop_timer -= delta
+		return
+	
+	# 震屏衰减
+	if shake_intensity > 0:
+		shake_intensity = max(0, shake_intensity - 6.0 * delta)
+		camera_offset = Vector2(randf_range(-shake_intensity, shake_intensity), randf_range(-shake_intensity, shake_intensity))
+	else:
+		camera_offset = Vector2.ZERO
+	
+	# 战吼buff
+	if war_cry_buff:
+		war_cry_timer -= delta
+		if war_cry_timer <= 0:
+			war_cry_buff = false
+	
 	_process_player(delta)
 	_update_visuals(delta)
 	_update_dummies(delta)
 	_process_hit_effects(delta)
-	_run_demo()
+	_process_particles(delta)
+	_update_hud()
+	
+	# 场景切换
+	if Input.is_key_pressed(KEY_R):
+		get_tree().change_scene_to_file("res://scenes/levels/boss_arena.tscn")
 	
 	# 自动截图
 	if frame_count == 120:
-		_take_screenshot("legend_alpha_screenshot.png")
+		_take_screenshot("legend_training_v05.png")
 	if frame_count > 400:
-		_take_screenshot("legend_alpha_combat.png")
+		_take_screenshot("legend_training_combat_v05.png")
 		get_tree().quit()
+	
+	_run_demo()
 
 func _process_player(delta: float) -> void:
 	var speed = 280.0
@@ -356,6 +351,7 @@ func _process_player(delta: float) -> void:
 		if combo_timer <= 0:
 			combo_sequence.clear()
 			combo_count = 0
+			hit_count = 0
 	
 	# 格挡窗口
 	if is_perfect_parry_window:
@@ -365,14 +361,29 @@ func _process_player(delta: float) -> void:
 			if parry_indicator:
 				parry_indicator.visible = false
 	
-	# 攻击中
+	# 攻击中 - 判定帧
 	if is_attacking:
 		attack_frame += 1
-		player_vel.x = lerp(player_vel.x, 0.0, 0.12)
+		var active_end: int = attack_startup_frames + attack_active_frames
+		if attack_frame <= attack_startup_frames:
+			attack_phase = AttackPhase.STARTUP
+			player_vel.x = lerp(player_vel.x, 0.0, 0.15)
+		elif attack_frame <= active_end:
+			attack_phase = AttackPhase.ACTIVE
+			if attack_name == "冲刺斩":
+				player_vel.x = player_facing * 180
+			else:
+				player_vel.x = lerp(player_vel.x, 0.0, 0.08)
+		else:
+			attack_phase = AttackPhase.RECOVERY
+			player_vel.x = lerp(player_vel.x, 0.0, 0.12)
+		
 		if attack_frame >= attack_duration:
 			is_attacking = false
 			attack_frame = 0
 			attack_name = ""
+			attack_hit_dealt = false
+			attack_phase = AttackPhase.STARTUP
 			_play_anim("idle")
 	
 	# 格挡
@@ -394,7 +405,6 @@ func _process_player(delta: float) -> void:
 	else:
 		player_vel.x = lerp(player_vel.x, 0.0, 0.2)
 	
-	# 动画状态切换
 	if not is_attacking:
 		if player_pos.y < 309:
 			_play_anim("jump")
@@ -403,17 +413,14 @@ func _process_player(delta: float) -> void:
 		else:
 			_play_anim("idle")
 	
-	# 跳跃
 	if Input.is_action_just_pressed("jump") and player_pos.y >= 306:
 		player_vel.y = -450.0
 	
-	# 攻击
 	if Input.is_action_just_pressed("attack"):
 		_do_attack("L")
 	elif Input.is_action_just_pressed("heavy_attack"):
 		_do_attack("H")
 	
-	# 格挡
 	if Input.is_action_just_pressed("guard"):
 		is_guarding = true
 		is_perfect_parry_window = true
@@ -429,16 +436,24 @@ func _process_player(delta: float) -> void:
 	# 战吼
 	if Input.is_action_just_pressed("skill_1") and rage >= 50:
 		rage -= 50
+		war_cry_buff = true
+		war_cry_timer = 8.0
 		_play_anim("war_cry")
 		_show_perfect("WAR CRY!", Color(0.9, 0.7, 0.2))
+		_spawn_rage_particles(player_pos)
+		shake_intensity = 2.0
 	
 	# 终极技
 	if Input.is_action_just_pressed("ultimate") and rage >= 100:
 		rage = 0
 		_play_anim("earth_shatter")
 		_show_perfect("EARTH SHATTER!", Color(1, 0.3, 0.1))
+		hitstop_timer = 0.1
+		shake_intensity = 6.0
+		# AOE打所有木桩
 		for d in dummies:
-			_hit_dummy(d, 50)
+			_hit_dummy(d, 50, true)
+		_spawn_earth_particles(player_pos)
 	
 	# 重力
 	if player_pos.y < 309:
@@ -446,17 +461,23 @@ func _process_player(delta: float) -> void:
 	
 	player_pos += player_vel * delta
 	
-	# 地面
 	if player_pos.y > 309:
 		player_pos.y = 309
 		player_vel.y = 0
 
 func _do_attack(input_key: String) -> void:
+	# 只能在后摇阶段输入下一连招
+	if is_attacking and attack_phase != AttackPhase.RECOVERY:
+		return
+	if is_attacking and attack_phase == AttackPhase.RECOVERY:
+		is_attacking = false
+		attack_frame = 0
+		attack_hit_dealt = false
+	
 	combo_sequence.append(input_key)
 	combo_timer = 1.0
 	
 	var key = ",".join(combo_sequence)
-	
 	var combo_data = null
 	if combo_tree.has(key):
 		combo_data = combo_tree[key]
@@ -472,15 +493,40 @@ func _do_attack(input_key: String) -> void:
 	
 	attack_name = combo_data["name"]
 	attack_duration = combo_data["dur"]
+	attack_startup_frames = combo_data.get("startup", 4)
+	attack_active_frames = combo_data.get("active", 6)
 	is_attacking = true
 	attack_frame = 0
+	attack_phase = AttackPhase.STARTUP
+	attack_hit_dealt = false
 	combo_count += 1
+	hit_count += 1
 	_play_anim("attack")
 	
-	# 完美判定
-	var is_perfect = false
-	if is_perfect_parry_window or randf() < 0.2:
-		is_perfect = true
+	# 判定帧内检测命中
+	var is_perfect = is_perfect_parry_window or randf() < 0.2
+	var dmg: float = 10.0 * combo_data["mult"]
+	if is_perfect:
+		dmg *= 1.3
+	if war_cry_buff:
+		dmg *= 1.15
+	
+	# 打击木桩（判定帧触发）
+	for d in dummies:
+		var dist = abs(d["pos"].x - player_pos.x)
+		if dist < 60:
+			_hit_dummy(d, dmg, is_perfect)
+			attack_hit_dealt = true
+			
+			# 打击感
+			var hit_pos: Vector2 = (player_pos + d["pos"]) / 2 + Vector2(0, -20)
+			_spawn_hit_spark(hit_pos, Color(1, 0.9, 0.5) if not is_perfect else Color(1, 0.5, 0.2))
+			if dmg >= 20:
+				hitstop_timer = 0.08
+				shake_intensity = 3.0
+			else:
+				hitstop_timer = 0.04
+				shake_intensity = 1.0
 	
 	# 怒气
 	var rage_gain: float = combo_data["rage"]
@@ -488,24 +534,15 @@ func _do_attack(input_key: String) -> void:
 		rage_gain *= 1.5
 	rage = min(max_rage, rage + rage_gain)
 	
-	# 显示连招名
+	# 显示连招
 	combo_label.text = attack_name
 	if is_perfect:
 		combo_label.add_theme_color_override("font_color", Color(1, 0.9, 0.2, 1))
 		_show_perfect("PERFECT!", Color(1, 0.95, 0.5))
 	else:
 		combo_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-	
-	# 打击木桩
-	for d in dummies:
-		var dist = abs(d["pos"].x - player_pos.x)
-		if dist < 60:
-			var dmg: float = 10.0 * combo_data["mult"]
-			if is_perfect:
-				dmg *= 1.3
-			_hit_dummy(d, dmg)
 
-func _hit_dummy(d: Dictionary, damage: float) -> void:
+func _hit_dummy(d: Dictionary, damage: float, is_crit: bool = false) -> void:
 	d["flash"] = 0.3
 	d["shake"] = Vector2(randf_range(-3, 3), randf_range(-2, 2))
 	d["hp"] -= damage
@@ -513,8 +550,11 @@ func _hit_dummy(d: Dictionary, damage: float) -> void:
 	var dmg_label = Label.new()
 	dmg_label.text = str(int(damage))
 	dmg_label.position = d["pos"] + Vector2(randf_range(-10, 10), -20)
-	dmg_label.add_theme_font_size_override("font_size", 10 if damage < 20 else 14)
-	dmg_label.add_theme_color_override("font_color", Color(1, 0.3, 0.1) if damage >= 20 else Color(1, 1, 1))
+	dmg_label.add_theme_font_size_override("font_size", 14 if is_crit else 10)
+	if is_crit:
+		dmg_label.add_theme_color_override("font_color", Color(1, 0.85, 0.1))
+	else:
+		dmg_label.add_theme_color_override("font_color", Color(1, 1, 1))
 	add_child(dmg_label)
 	hit_effects.append({"node": dmg_label, "life": 0.8, "vel": Vector2(randf_range(-15, 15), -40)})
 
@@ -526,22 +566,82 @@ func _show_perfect(text: String, color: Color) -> void:
 	tween.tween_property(perfect_label, "modulate:a", 0, 0.8)
 	tween.tween_callback(func(): perfect_label.visible = false; perfect_label.modulate.a = 1)
 
+# === 粒子特效（简化版） ===
+func _spawn_hit_spark(pos: Vector2, color: Color) -> void:
+	for i in range(5):
+		var angle: float = randf() * TAU
+		var speed: float = randf_range(80, 180)
+		var p = ColorRect.new()
+		p.size = Vector2(2, 2)
+		p.position = pos
+		p.color = color
+		add_child(p)
+		particles.append({"node": p, "life": 0.2, "max_life": 0.2, "vel": Vector2(cos(angle) * speed, sin(angle) * speed), "gravity": 200.0})
+
+func _spawn_rage_particles(pos: Vector2) -> void:
+	var colors: Array = [Color(1, 0.5, 0.1), Color(1, 0.8, 0.2), Color(1, 0.3, 0.05)]
+	for i in range(10):
+		var angle: float = randf() * TAU
+		var speed: float = randf_range(60, 180)
+		var p = ColorRect.new()
+		p.size = Vector2(randf_range(2, 4), randf_range(2, 4))
+		p.position = pos
+		p.color = colors[i % 3]
+		add_child(p)
+		particles.append({"node": p, "life": 0.4, "max_life": 0.4, "vel": Vector2(cos(angle) * speed, sin(angle) * speed), "gravity": -30.0})
+
+func _spawn_earth_particles(pos: Vector2) -> void:
+	for i in range(8):
+		var angle: float = -PI/2 + randf_range(-1.0, 1.0)
+		var speed: float = randf_range(100, 250)
+		var p = ColorRect.new()
+		p.size = Vector2(randf_range(3, 5), randf_range(3, 5))
+		p.position = pos + Vector2(randf_range(-20, 20), 0)
+		p.color = Color(0.5, 0.4, 0.3) if randf() > 0.3 else Color(0.6, 0.5, 0.3)
+		add_child(p)
+		particles.append({"node": p, "life": 0.5, "max_life": 0.5, "vel": Vector2(cos(angle) * speed, sin(angle) * speed - 80), "gravity": 350.0})
+
+func _process_particles(delta: float) -> void:
+	var to_remove: Array = []
+	for i in range(particles.size()):
+		var p: Dictionary = particles[i]
+		p["life"] -= delta
+		if p["life"] <= 0:
+			p["node"].queue_free()
+			to_remove.append(i)
+			continue
+		var vel: Vector2 = p["vel"]
+		p["node"].position += vel * delta
+		p["vel"] = Vector2(vel.x, vel.y + p["gravity"] * delta)
+		var ratio: float = p["life"] / p["max_life"]
+		var mod: Color = p["node"].modulate
+		mod.a = ratio
+		p["node"].modulate = mod
+	for i in to_remove:
+		if i < particles.size():
+			particles.remove_at(i)
+
 func _update_visuals(delta: float) -> void:
 	var f = player_facing
+	var shake = camera_offset
 	
-	# 角色位置（64x64精灵中心偏移）
-	player_sprite.position = player_pos + Vector2(0, -32)
+	player_sprite.position = player_pos + Vector2(0, -32) + shake
 	player_sprite.flip_h = (f < 0)
 	
-	# 格挡指示器
+	# 战吼buff视觉效果
+	if war_cry_buff:
+		if int(frame_count / 4) % 3 == 0:
+			player_sprite.modulate = Color(1.2, 1.0, 0.7)
+		else:
+			player_sprite.modulate = Color(1, 1, 1)
+	
 	if is_guarding and is_perfect_parry_window:
 		parry_indicator.visible = true
-		parry_indicator.position = player_pos + Vector2(-10 * f, -42)
+		parry_indicator.position = player_pos + Vector2(-10 * f, -42) + shake
 		parry_indicator.color = Color(0.5, 0.8, 1.0, 0.3 + 0.3 * sin(frame_count * 0.5))
 	else:
 		parry_indicator.visible = false
 	
-	# 怒气条
 	rage_fill.size.x = 124 * (rage / max_rage)
 	if rage >= 100:
 		rage_fill.color = Color(1, 0.85, 0.2, 1) if int(frame_count / 6) % 2 == 0 else Color(0.9, 0.5, 0.1, 1)
@@ -550,13 +650,11 @@ func _update_visuals(delta: float) -> void:
 	else:
 		rage_fill.color = Color(0.9, 0.6, 0.1, 1)
 	
-	# 技能可用状态
 	skill_label_1.add_theme_color_override("font_color",
 		Color(0.3, 1, 0.3, 1) if rage >= 50 else Color(0.5, 0.5, 0.5, 0.5))
 	skill_label_2.add_theme_color_override("font_color",
 		Color(1, 0.3, 0.2, 1) if rage >= 100 else Color(0.5, 0.5, 0.5, 0.5))
 	
-	# 连招超时清除
 	if combo_timer <= 0 and not is_attacking:
 		combo_label.text = ""
 
@@ -571,6 +669,21 @@ func _update_dummies(delta: float) -> void:
 				d["sprite"].modulate = Color(2, 1.5, 1) if int(d["flash"] * 20) % 2 == 0 else Color(1, 1, 1)
 			else:
 				d["sprite"].modulate = Color(1, 1, 1)
+
+func _update_hud() -> void:
+	if hit_count >= 2:
+		hit_count_label.visible = true
+		hit_count_label.text = str(hit_count) + " HIT"
+		if hit_count >= 20:
+			hit_count_label.add_theme_color_override("font_color", Color(1, 0.2, 0.1, 1))
+		elif hit_count >= 10:
+			hit_count_label.add_theme_color_override("font_color", Color(1, 0.6, 0.1, 1))
+		elif hit_count >= 5:
+			hit_count_label.add_theme_color_override("font_color", Color(1, 0.9, 0.3, 1))
+		else:
+			hit_count_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.9))
+	else:
+		hit_count_label.visible = false
 
 func _process_hit_effects(delta: float) -> void:
 	var to_remove = []
@@ -594,7 +707,6 @@ func _take_screenshot(filename: String) -> void:
 		img.save_png("/home/z/my-project/download/" + filename)
 		print("Screenshot saved: " + filename)
 
-# === 自动演示 ===
 func _run_demo() -> void:
 	match frame_count:
 		60:
@@ -619,6 +731,7 @@ func _run_demo() -> void:
 		310:
 			rage = 100
 			_show_perfect("RAGE FULL!", Color(1, 0.7, 0.1))
+			_spawn_rage_particles(player_pos)
 		340:
 			_do_attack("L")
 		355:
