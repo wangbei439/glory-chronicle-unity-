@@ -1,21 +1,25 @@
-## 幽影矿井 Boss 战 - Alpha v0.5
+## 幽影矿井 Boss 战 - Alpha v0.6
 ## 矿脉甲虫 vs 战士 完整战斗
-## 新增：Hitstop/震屏/粒子/判定帧/预警/裂地斩AOE/场景切换
+## 新增：Hitstop/震屏/粒子/判定帧/预警/裂地斩AOE/死亡重生
 extends Node2D
 
 const GROUND_Y: float = 309.0
+
+# === 自动演示模式（服务器截图用，玩家下载后默认关闭）===
+@export var auto_demo: bool = false
+@export var auto_quit_frame: int = 0  # 0=不自动退出
 
 # 子系统
 var warrior: Node2D
 var boss: Node2D
 var hud: Node2D
-var effects: Node2D  # 打击感特效系统
+var effects: Node2D
 
 # 视觉节点
 var player_sprite: AnimatedSprite2D
 var boss_sprite: AnimatedSprite2D
 var parry_indicator: ColorRect
-var camera_offset: Vector2 = Vector2.ZERO  # 震屏偏移
+var camera_offset: Vector2 = Vector2.ZERO
 
 # 战斗状态
 var battle_active: bool = false
@@ -30,9 +34,10 @@ var earth_shatter_active: bool = false
 var earth_shatter_timer: float = 0.0
 var earth_shatter_dealt: bool = false
 
-# 场景切换
-var current_scene: String = "boss_arena"
-var scene_switch_cooldown: float = 0.0
+# 死亡/重生
+var player_dead: bool = false
+var respawn_timer: float = 0.0
+var boss_victory: bool = false
 
 func _ready() -> void:
 	_build_scene()
@@ -121,26 +126,22 @@ func _build_scene() -> void:
 	
 	# 版本号
 	var ver = Label.new()
-	ver.text = "v0.5"
+	ver.text = "v0.6"
 	ver.position = Vector2(600, 350)
 	ver.add_theme_font_size_override("font_size", 7)
 	ver.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 0.6))
 	add_child(ver)
 	
-	# 场景切换提示
-	var switch_hint = Label.new()
-	switch_hint.text = "[R]切换训练场"
-	switch_hint.position = Vector2(520, 350)
-	switch_hint.add_theme_font_size_override("font_size", 7)
-	switch_hint.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 0.5))
-	add_child(switch_hint)
+	# 操作提示
+	var hint = Label.new()
+	hint.text = "A/D:移动 W/Space:跳跃 J:轻攻 K:重攻 L:格挡 U:战吼 I:裂地斩 R:重来"
+	hint.position = Vector2(120, 350)
+	hint.add_theme_font_size_override("font_size", 7)
+	hint.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55, 0.7))
+	add_child(hint)
 
 func _physics_process(delta: float) -> void:
 	frame_count += 1
-	
-	# 场景切换冷却
-	if scene_switch_cooldown > 0:
-		scene_switch_cooldown -= delta
 	
 	# Hitstop：顿帧期间只处理特效
 	if effects.hitstop_active:
@@ -152,6 +153,24 @@ func _physics_process(delta: float) -> void:
 	
 	if battle_intro:
 		_process_intro(delta)
+		return
+	
+	# === 死亡/重生 ===
+	if player_dead:
+		respawn_timer -= delta
+		if respawn_timer <= 0:
+			# 按R键重生
+			if Input.is_key_pressed(KEY_R):
+				_respawn_player()
+		# 粒子特效仍要更新
+		effects.process(delta)
+		return
+	
+	# === Boss胜利 ===
+	if boss_victory:
+		effects.process(delta)
+		if Input.is_key_pressed(KEY_R):
+			_restart_battle()
 		return
 	
 	if not battle_active:
@@ -166,7 +185,7 @@ func _physics_process(delta: float) -> void:
 	# 处理Boss
 	boss.process(delta, warrior.pos, GROUND_Y)
 	
-	# 碰撞检测（使用判定帧）
+	# 碰撞检测
 	_check_combat_collisions()
 	
 	# 裂地斩AOE
@@ -197,19 +216,13 @@ func _physics_process(delta: float) -> void:
 	if boss.phase == 2 and boss.hp > 0 and frame_count % 30 == 0:
 		effects.spawn_boss_enrage_aura(boss.pos)
 	
-	# 场景切换
-	if Input.is_action_just_pressed("skill_1") and scene_switch_cooldown <= 0:
-		# 暂时用U键也做场景切换（方便测试）
-		pass  # 保持U键为战吼功能
+	# === 自动演示模式（仅服务器截图用）===
+	if auto_demo:
+		_run_demo()
 	
-	# 自动演示
-	_run_demo()
-	
-	# 截图
-	if frame_count == 150:
-		_take_screenshot("legend_v05_battle.png")
-	if frame_count > 500:
-		_take_screenshot("legend_v05_combat.png")
+	# === 自动退出（仅服务器用）===
+	if auto_quit_frame > 0 and frame_count >= auto_quit_frame:
+		_take_screenshot("legend_auto_quit.png")
 		get_tree().quit()
 
 func _process_intro(delta: float) -> void:
@@ -234,7 +247,6 @@ func _check_combat_collisions() -> void:
 	var dist = abs(warrior.pos.x - boss.pos.x)
 	
 	# === 玩家攻击Boss ===
-	# 只有在攻击判定帧才能造成伤害
 	if warrior.is_in_active_frames() and not boss_hit_applied:
 		if dist < 80:
 			var dmg: float = warrior.get_attack_damage()
@@ -242,44 +254,32 @@ func _check_combat_collisions() -> void:
 			warrior.mark_hit_dealt()
 			boss_hit_applied = true
 			
-			# 打击感特效
 			var hit_pos: Vector2 = (warrior.pos + boss.pos) / 2 + Vector2(0, -20)
 			var is_heavy: bool = dmg >= 20
 			
-			# 命中火花
 			effects.spawn_hit_spark(hit_pos, Color(1, 0.9, 0.5) if not is_heavy else Color(1, 0.5, 0.2))
-			
-			# 血液飞溅
 			effects.spawn_blood_splatter(hit_pos, warrior.facing)
 			
-			# Hitstop顿帧（重击更长）
 			if is_heavy:
 				effects.start_hitstop(0.1)
-			else:
-				effects.start_hitstop(0.06)
-			
-			# 震屏（重击更强烈）
-			if is_heavy:
 				effects.start_shake(4.0, 8.0)
 			else:
+				effects.start_hitstop(0.06)
 				effects.start_shake(1.5, 6.0)
 			
-			# 伤害数字
 			hud.spawn_damage_number(boss.pos + Vector2(0, -40), dmg, is_heavy)
 			
-			# 怒气获取
 			var combo_info = warrior.get_attack_info()
 			var rage_gain: float = 5.0 * combo_info.get("damage_mult", 1.0)
 			if warrior.war_cry_buff:
 				rage_gain *= 1.2
 			warrior.rage = min(warrior.max_rage, warrior.rage + rage_gain)
 	
-	if not warrior.is_attacking or warrior.attack_phase != 2:  # 不在判定帧
-		if warrior.attack_phase == 3:  # RECOVERY
+	if not warrior.is_attacking or warrior.attack_phase != 2:
+		if warrior.attack_phase == 3:
 			boss_hit_applied = false
 	
 	# === Boss攻击玩家 ===
-	# 只有Boss在判定帧才能伤害玩家
 	if boss.is_in_attack_state() and boss.is_attack_active() and not player_hit_applied:
 		if dist < 85:
 			var dmg: float = boss.get_attack_damage()
@@ -288,12 +288,10 @@ func _check_combat_collisions() -> void:
 			if dmg > 0:
 				hud.spawn_damage_number(warrior.pos + Vector2(0, -40), dmg, dmg >= 25)
 				
-				# 打击感
 				var hit_pos: Vector2 = (warrior.pos + boss.pos) / 2 + Vector2(0, -20)
 				effects.spawn_hit_spark(hit_pos, Color(1, 0.3, 0.2))
 				effects.spawn_blood_splatter(hit_pos, boss.facing)
 				
-				# Boss重击 → 长顿帧+强震屏
 				if dmg >= 25:
 					effects.start_hitstop(0.12)
 					effects.start_shake(6.0, 10.0)
@@ -307,25 +305,21 @@ func _check_combat_collisions() -> void:
 		player_hit_applied = false
 
 func _process_earth_shatter(delta: float) -> void:
-	"""处理裂地斩AOE"""
-	# 检测是否使用裂地斩
 	if warrior.current_anim == "earth_shatter" and not earth_shatter_active:
 		earth_shatter_active = true
 		earth_shatter_timer = 0.5
 		earth_shatter_dealt = false
-		# 怒气爆发特效
 		effects.spawn_rage_burst(warrior.pos)
 		effects.start_shake(5.0, 8.0)
 		hud.show_perfect("EARTH SHATTER!", Color(1, 0.3, 0.1))
 	
 	if earth_shatter_active:
 		earth_shatter_timer -= delta
-		# 在判定帧造成AOE伤害
 		if earth_shatter_timer <= 0.3 and not earth_shatter_dealt:
 			earth_shatter_dealt = true
 			var dist = abs(warrior.pos.x - boss.pos.x)
-			if dist < 120:  # 裂地斩大范围
-				var dmg: float = 60.0  # 终极技高伤害
+			if dist < 120:
+				var dmg: float = 60.0
 				if warrior.war_cry_buff:
 					dmg *= warrior.war_cry_damage_mult
 				boss.take_damage(dmg)
@@ -339,7 +333,6 @@ func _process_earth_shatter(delta: float) -> void:
 		if earth_shatter_timer <= 0:
 			earth_shatter_active = false
 	
-	# 战吼特效
 	if warrior.current_anim == "war_cry" and frame_count % 8 == 0:
 		effects.spawn_rage_burst(warrior.pos + Vector2(0, -30))
 
@@ -349,12 +342,10 @@ func _on_player_attack(_target: Node2D, _damage: float, _knockback: Vector2) -> 
 func _on_parry_success(is_perfect: bool) -> void:
 	if is_perfect:
 		hud.show_perfect("PERFECT PARRY!", Color(0.5, 0.8, 1.0))
-		# 完美格挡特效
 		var parry_pos: Vector2 = warrior.pos + Vector2(15 * warrior.facing, -25)
 		effects.spawn_parry_spark(parry_pos, true)
 		effects.start_hitstop(0.08)
 		effects.start_shake(2.0, 6.0)
-		# 怒气回复
 		warrior.rage = min(warrior.max_rage, warrior.rage + 15)
 		hud.update_rage(warrior.rage, warrior.max_rage)
 	else:
@@ -365,38 +356,98 @@ func _on_parry_success(is_perfect: bool) -> void:
 
 func _on_boss_phase_changed(phase: int) -> void:
 	hud.update_boss_phase(phase)
-	# 狂暴特效
 	effects.start_slowmo(0.5, 0.3)
 	effects.spawn_boss_enrage_aura(boss.pos)
 	hud.show_perfect("ENRAGED!", Color(1, 0.2, 0.1))
 
 func _on_boss_died() -> void:
 	battle_active = false
+	boss_victory = true
 	hud.show_perfect("VICTORY!", Color(1, 0.9, 0.2))
 	effects.start_slowmo(1.0, 0.2)
 	effects.start_shake(10.0, 3.0)
-	# 胜利粒子爆发
 	for i in range(3):
 		effects.spawn_rage_burst(boss.pos + Vector2(randf_range(-30, 30), randf_range(-40, 0)))
-	_take_screenshot("legend_v05_victory.png")
+	# 提示重开
+	hud.show_perfect("VICTORY! [R]RESTART", Color(1, 0.9, 0.2))
 
 func _on_boss_telegraph(attack_type: String, direction: float, duration: float) -> void:
-	"""Boss攻击预警信号"""
-	# 预警将在 _update_telegraph 中根据Boss状态更新
 	pass
 
 func _on_boss_attack_active(is_active: bool) -> void:
-	"""Boss攻击判定帧变化"""
 	if not is_active:
 		hud.hide_telegraph()
 
 func _on_player_died() -> void:
 	battle_active = false
-	hud.show_perfect("DEFEATED...", Color(0.5, 0.5, 0.5))
+	player_dead = true
+	respawn_timer = 1.5  # 1.5秒后可重生
 	effects.start_slowmo(0.5, 0.3)
+	hud.show_perfect("DEFEATED [R]RETRY", Color(0.5, 0.5, 0.5))
+
+func _respawn_player() -> void:
+	"""玩家重生：满血半怒气"""
+	player_dead = false
+	warrior.hp = warrior.max_hp
+	warrior.rage = 50.0
+	warrior.pos = Vector2(150, GROUND_Y)
+	warrior.vel = Vector2.ZERO
+	warrior.is_hurt = false
+	warrior.invincible_timer = 2.0  # 重生无敌2秒
+	warrior.is_attacking = false
+	warrior.is_guarding = false
+	warrior.hit_count = 0
+	battle_active = true
+	effects.time_scale = 1.0
+	hud.update_player_hp(warrior.hp, warrior.max_hp)
+	hud.update_rage(warrior.rage, warrior.max_rage)
+	hud.show_perfect("FIGHT!", Color(1, 0.3, 0.1))
+
+func _restart_battle() -> void:
+	"""完全重启Boss战"""
+	# 重置战士
+	warrior.hp = warrior.max_hp
+	warrior.rage = 0.0
+	warrior.pos = Vector2(150, GROUND_Y)
+	warrior.vel = Vector2.ZERO
+	warrior.is_hurt = false
+	warrior.invincible_timer = 0
+	warrior.is_attacking = false
+	warrior.is_guarding = false
+	warrior.hit_count = 0
+	warrior.war_cry_buff = false
+	
+	# 重置Boss
+	boss.hp = boss.max_hp
+	boss.pos = Vector2(480, GROUND_Y)
+	boss.facing = -1.0
+	boss.vel = Vector2.ZERO
+	boss.is_stunned = false
+	boss.phase = 1
+	boss.super_armor = false
+	boss.poise = boss.max_poise
+	boss.change_state(0)  # IDLE
+	
+	# 重置战斗状态
+	battle_intro = true
+	battle_active = false
+	boss_victory = false
+	player_dead = false
+	intro_timer = 0.0
+	frame_count = 0
+	player_hit_applied = false
+	boss_hit_applied = false
+	earth_shatter_active = false
+	
+	effects.time_scale = 1.0
+	
+	hud.update_player_hp(warrior.hp, warrior.max_hp)
+	hud.update_rage(warrior.rage, warrior.max_rage)
+	hud.show_boss_hp("矿脉甲虫")
+	hud.update_boss_hp(boss.hp, boss.max_hp)
+	hud.clear_combo()
 
 func _update_telegraph() -> void:
-	"""更新Boss预警显示"""
 	var info: Dictionary = boss.get_telegraph_info()
 	var warning_level: int = info.get("warning_level", 0)
 	if warning_level > 0:
@@ -405,33 +456,28 @@ func _update_telegraph() -> void:
 		hud.hide_telegraph()
 
 func _update_hud() -> void:
-	"""更新HUD状态"""
 	hud.update_player_hp(warrior.hp, warrior.max_hp)
 	hud.update_rage(warrior.rage, warrior.max_rage)
 	hud.update_hit_count(warrior.hit_count)
 
 func _update_visuals() -> void:
-	# 震屏偏移
 	var shake = camera_offset
 	
 	# 战士
 	player_sprite.position = warrior.pos + Vector2(0, -32) + shake
 	player_sprite.flip_h = (warrior.facing < 0)
 	
-	# 无敌闪烁
 	if warrior.invincible_timer > 0:
 		player_sprite.visible = int(frame_count / 3) % 2 == 0
 	else:
 		player_sprite.visible = true
 	
-	# 战吼buff视觉效果
 	if warrior.war_cry_buff:
 		if int(frame_count / 4) % 3 == 0:
 			player_sprite.modulate = Color(1.2, 1.0, 0.7)
 		else:
 			player_sprite.modulate = Color(1, 1, 1)
 	
-	# 格挡指示器
 	if warrior.is_guarding and warrior.is_perfect_parry_window:
 		parry_indicator.visible = true
 		parry_indicator.position = warrior.pos + Vector2(-10 * warrior.facing, -42) + shake
@@ -439,7 +485,7 @@ func _update_visuals() -> void:
 	else:
 		parry_indicator.visible = false
 	
-	# Boss (96x64 精灵, 中心偏移16)
+	# Boss
 	boss_sprite.position = boss.pos + Vector2(-16, -32) + shake
 	boss_sprite.flip_h = (boss.facing < 0)
 
@@ -449,7 +495,7 @@ func _take_screenshot(filename: String) -> void:
 		img.save_png("/home/z/my-project/download/" + filename)
 		print("Screenshot saved: " + filename)
 
-# === 自动演示 ===
+# === 自动演示（仅服务器截图模式）===
 func _run_demo() -> void:
 	match frame_count:
 		150:
