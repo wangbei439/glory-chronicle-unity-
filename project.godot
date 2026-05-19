@@ -1,5 +1,5 @@
 ; Engine configuration file.
-; Project: 《代号：传说》 Alpha v0.8
+; Project: 《代号：传说》 Alpha v0.9
 
 [application]
 
@@ -10,6 +10,7 @@ config/features=PackedStringArray("4.6", "GL Compatibility")
 [autoload]
 
 GameState="*res://scripts/core/game_state.gd"
+SaveSystem="*res://scripts/core/save_system.gd"
 
 [display]
 

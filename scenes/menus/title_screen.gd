@@ -1,5 +1,6 @@
-## 主菜单/标题画面 - Alpha v0.7
-## 游戏入口：标题动画、菜单选项、背景粒子
+## 主菜单/标题画面 - Alpha v0.9
+## 游戏入口：标题动画、菜单选项、存档信息、背景粒子
+## v0.9新增：继续游戏选项、存档信息显示
 extends Node2D
 
 # 菜单选项
@@ -13,6 +14,7 @@ var subtitle_label: Label
 var version_label: Label
 var cursor: ColorRect
 var bg_particles: Array = []
+var save_info_label: Label = null
 
 # 场景路径
 const SCENES = {
@@ -105,11 +107,12 @@ func _build_scene() -> void:
         add_child(line)
 
         # === 菜单选项 ===
-        var menu_data = [
-                {"text": "开始冒险", "scene": "mine"},
-                {"text": "训练场", "scene": "training"},
-                {"text": "Boss挑战", "scene": "boss"},
-        ]
+        var menu_data = []
+        if SaveSystem.has_save:
+                menu_data.append({"text": "继续游戏", "scene": "continue"})
+        menu_data.append({"text": "开始冒险", "scene": "mine"})
+        menu_data.append({"text": "训练场", "scene": "training"})
+        menu_data.append({"text": "Boss挑战", "scene": "boss"})
 
         var start_y: float = 160
         for i in range(menu_data.size()):
@@ -130,11 +133,22 @@ func _build_scene() -> void:
 
         # === 底部信息 ===
         version_label = Label.new()
-        version_label.text = "Alpha v0.7"
+        version_label.text = "Alpha v0.9"
         version_label.position = Vector2(560, 345)
         version_label.add_theme_font_size_override("font_size", 7)
         version_label.add_theme_color_override("font_color", Color(0.4, 0.4, 0.4, 0.5))
         add_child(version_label)
+
+        # === 存档信息 ===
+        if SaveSystem.has_save:
+                var info: Dictionary = SaveSystem.get_save_info()
+                save_info_label = Label.new()
+                var save_text: String = "存档: " + str(info.get("play_time", "")) + " | 击杀:" + str(info.get("total_kills", 0)) + " | 矿石:" + str(info.get("ore_fragments", 0))
+                save_info_label.text = save_text
+                save_info_label.position = Vector2(180, 330)
+                save_info_label.add_theme_font_size_override("font_size", 7)
+                save_info_label.add_theme_color_override("font_color", Color(0.5, 0.45, 0.35, 0.6))
+                add_child(save_info_label)
 
         var controls = Label.new()
         controls.text = "W/S:选择  Enter/J:确认  Esc:退出"
@@ -231,6 +245,22 @@ func _confirm_selection() -> void:
         if is_transitioning:
                 return
         var scene_key: String = menu_items[selected_index]["scene"]
+
+        # 继续游戏：加载存档后进入上次关卡
+        if scene_key == "continue":
+                SaveSystem.load_game()
+                var last_level: String = GameState.current_level
+                if last_level == "" or not SCENES.has(last_level):
+                        last_level = "mine"
+                target_scene = SCENES[last_level]
+                is_transitioning = true
+                return
+
+        # 新游戏
+        if scene_key == "mine" and SaveSystem.has_save:
+                # 有存档时开始新游戏会重置进度
+                SaveSystem.new_game()
+
         if SCENES.has(scene_key):
                 target_scene = SCENES[scene_key]
                 is_transitioning = true
