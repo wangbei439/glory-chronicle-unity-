@@ -1,4 +1,4 @@
-## 幽影矿井关卡 - Beta v0.12
+## 幽影矿井关卡 - Beta v0.13
 ## 多房间滚动关卡：入口(640px)→矿道深处(640px)→Boss门前(640px)
 ## 总宽度1920px，摄像机跟随滚动
 ## v0.9: 多房间地图、矿车障碍、存档集成、物品栏
@@ -13,7 +13,10 @@ const LEVEL_WIDTH: float = 1920.0  # 3个房间 × 640px
 @export var auto_quit_frame: int = 0
 
 # 子系统
-var warrior: Node2D
+var player: Node2D
+var warrior: Node2D:
+        get:
+                return player
 var effects: Node2D
 var hud: Node2D
 var camera: Node2D
@@ -180,32 +183,39 @@ func _build_scene() -> void:
         crafting_system.set_ore_count(drop_system.ore_fragments)
         equipment.set_crafting_system(crafting_system)
 
-        # === 战士 ===
-        var warrior_script = load("res://scripts/player/warrior.gd")
-        warrior = Node2D.new()
-        warrior.set_script(warrior_script)
-        add_child(warrior)
+        # === 玩家（双职业）===
+        var player_script: GDScript = null
+        if GameState.is_ranger():
+                player_script = load("res://scripts/player/ranger.gd")
+        else:
+                player_script = load("res://scripts/player/warrior.gd")
+        player = Node2D.new()
+        player.set_script(player_script)
+        add_child(player)
 
         player_sprite = AnimatedSprite2D.new()
         add_child(player_sprite)
-        warrior.setup_sprite(player_sprite)
-        warrior.pos = Vector2(60, GROUND_Y)
+        player.setup_sprite(player_sprite)
+        player.pos = Vector2(60, GROUND_Y)
 
         # 从全局状态恢复
         var state = GameState.get_player_state()
-        warrior.hp = state["hp"]
-        warrior.rage = state["rage"]
-        warrior.hit_count = state["hit_count"]
+        player.hp = state["hp"]
+        player.rage = state["rage"]
+        player.hit_count = state["hit_count"]
+        # 游侠max_hp兼容
+        if GameState.is_ranger() and state.has("max_hp"):
+                player.max_hp = state["max_hp"]
 
         parry_indicator = ColorRect.new()
         parry_indicator.size = Vector2(20, 20)
         parry_indicator.color = Color(0.5, 0.8, 1.0, 0.4)
         parry_indicator.visible = false
         add_child(parry_indicator)
-        warrior.parry_indicator = parry_indicator
+        player.parry_indicator = parry_indicator
 
         # 设置掉落系统引用
-        drop_system.set_player(warrior)
+        drop_system.set_player(player)
         drop_system.set_hud(null)
         drop_system.set_audio(audio)
 
@@ -215,8 +225,8 @@ func _build_scene() -> void:
         hud.set_script(hud_script)
         add_child(hud)
         hud.build()
-        hud.update_player_hp(warrior.hp, warrior.max_hp)
-        hud.update_rage(warrior.rage, warrior.max_rage)
+        hud.update_player_hp(player.hp, player.max_hp)
+        hud.update_rage(player.rage, player.max_rage)
         drop_system.set_hud(hud)
 
         # === HUD矿石计数 ===
@@ -237,14 +247,17 @@ func _build_scene() -> void:
 
         # === 版本/操作提示 ===
         var ver = Label.new()
-        ver.text = "v0.12"
+        ver.text = "v0.13"
         ver.position = Vector2(600, 350)
         ver.add_theme_font_size_override("font_size", 7)
         ver.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 0.6))
         add_child(ver)
 
         var hint = Label.new()
-        hint.text = "A/D:移动 W/Space:跳跃 J:轻攻 K:重攻 L:格挡 U:战吼 I:裂地斩 Tab:技能树 E:装备 Shift+Tab:物品 Esc:主菜单"
+        var guard_text: String = "L:闪避" if GameState.is_ranger() else "L:格挡"
+        var skill1_text: String = "U:影步" if GameState.is_ranger() else "U:战吼"
+        var skill2_text: String = "I:刃风暴" if GameState.is_ranger() else "I:裂地斩"
+        hint.text = "A/D:移动 W/Space:跳跃 J:轻攻 K:重攻 " + guard_text + " " + skill1_text + " " + skill2_text + " Tab:技能树 E:装备 Shift+Tab:物品 Esc:主菜单"
         hint.position = Vector2(40, 350)
         hint.add_theme_font_size_override("font_size", 7)
         hint.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55, 0.7))
@@ -502,14 +515,14 @@ func _physics_process(delta: float) -> void:
         camera_offset = effects.get_shake_offset()
         camera.apply_shake(camera_offset)
 
-        # 处理战士（war_cry计时已在warrior.process()内部处理，不在关卡重复减）
-        warrior.process(delta, GROUND_Y)
+        # 处理战士（war_cry计时已在player.process()内部处理，不在关卡重复减）
+        player.process(delta, GROUND_Y)
 
         # 限制玩家不出关卡边界
-        warrior.pos.x = clamp(warrior.pos.x, 20, LEVEL_WIDTH - 20)
+        player.pos.x = clamp(player.pos.x, 20, LEVEL_WIDTH - 20)
 
         # 跳跃/落地音效
-        var on_ground: bool = warrior.pos.y >= GROUND_Y - 3
+        var on_ground: bool = player.pos.y >= GROUND_Y - 3
         if not was_on_ground and on_ground:
                 audio.play("land")
         was_on_ground = on_ground
@@ -521,13 +534,13 @@ func _physics_process(delta: float) -> void:
         for i in range(enemies.size()):
                 var enemy: Node2D = enemies[i]
                 if enemy.hp > 0:
-                        enemy.process(delta, warrior.pos, GROUND_Y)
+                        enemy.process(delta, player.pos, GROUND_Y)
 
         # 处理蝙蝠
         for i in range(bats.size()):
                 var bat: Node2D = bats[i]
                 if bat.hp > 0:
-                        bat.process(delta, warrior.pos, GROUND_Y)
+                        bat.process(delta, player.pos, GROUND_Y)
 
         # 碰撞检测
         _check_player_vs_enemies()
@@ -551,13 +564,13 @@ func _physics_process(delta: float) -> void:
         _update_visuals()
 
         # 更新摄像机
-        camera.follow(warrior.pos, warrior.facing, delta)
+        camera.follow(player.pos, player.facing, delta)
 
         # 更新HUD
-        hud.update_player_hp(warrior.hp, warrior.max_hp)
-        hud.update_rage(warrior.rage, warrior.max_rage)
-        hud.update_hit_count(warrior.hit_count)
-        hud.show_war_cry_buff(warrior.war_cry_buff, warrior.war_cry_timer)
+        hud.update_player_hp(player.hp, player.max_hp)
+        hud.update_rage(player.rage, player.max_rage)
+        hud.update_hit_count(player.hit_count)
+        hud.show_war_cry_buff(player.war_cry_buff, player.war_cry_timer)
         hud.process_effects(delta)
         effects.process(delta)
 
@@ -571,21 +584,21 @@ func _physics_process(delta: float) -> void:
                 room_label.add_theme_color_override("font_color", Color(0.9, 0.85, 0.7, alpha))
 
         # 连招
-        if warrior.combo_timer <= 0 and not warrior.is_attacking:
+        if player.combo_timer <= 0 and not player.is_attacking:
                 hud.clear_combo()
-        if warrior.is_attacking and warrior.attack_name != "":
-                hud.show_combo(warrior.attack_name, warrior.war_cry_buff)
+        if player.is_attacking and player.attack_name != "":
+                hud.show_combo(player.attack_name, player.war_cry_buff)
 
         # 死亡重生
-        if warrior.hp <= 0 and warrior.invincible_timer <= 0:
+        if player.hp <= 0 and player.invincible_timer <= 0:
                 if Input.is_key_pressed(KEY_R):
-                        warrior.hp = warrior.max_hp
-                        warrior.rage = 0
-                        warrior.pos = Vector2(max(60, warrior.pos.x - 200), GROUND_Y)
-                        warrior.vel = Vector2.ZERO
-                        warrior.is_hurt = false
-                        warrior.invincible_timer = 2.0
-                        warrior.hit_count = 0
+                        player.hp = player.max_hp
+                        player.rage = 0
+                        player.pos = Vector2(max(60, player.pos.x - 200), GROUND_Y)
+                        player.vel = Vector2.ZERO
+                        player.is_hurt = false
+                        player.invincible_timer = 2.0
+                        player.hit_count = 0
                         audio.play("level_up", 0.5)
 
         # 截图
@@ -617,7 +630,7 @@ func _physics_process(delta: float) -> void:
                 portal.color = Color(0.3, 0.6, 1.0, 0.3 + 0.3 * sin(frame_count * 0.08))
 
 func _check_room_change() -> void:
-        var new_room: int = int(warrior.pos.x / 640.0)
+        var new_room: int = int(player.pos.x / 640.0)
         new_room = clamp(new_room, 0, 2)
         if new_room != current_room:
                 current_room = new_room
@@ -658,14 +671,14 @@ func _process_mine_carts(delta: float) -> void:
                         continue
 
                 # 碰撞检测
-                var dist_x: float = abs(warrior.pos.x - cart["pos"].x)
-                var dist_y: float = abs(warrior.pos.y - cart["pos"].y)
-                if dist_x < 35 and dist_y < 30 and warrior.invincible_timer <= 0:
+                var dist_x: float = abs(player.pos.x - cart["pos"].x)
+                var dist_y: float = abs(player.pos.y - cart["pos"].y)
+                if dist_x < 35 and dist_y < 30 and player.invincible_timer <= 0:
                         var base_dmg: float = 15.0
                         var dmg: float = base_dmg * (1.0 - skill_tree.get_defense_bonus()) * (1.0 - equipment.get_defense_bonus())
                         var kb: Vector2 = Vector2(cart["dir"] * 8, -5)
-                        warrior.take_damage(dmg, kb)
-                        hud.spawn_damage_number(warrior.pos + Vector2(0, -40), dmg, true)
+                        player.take_damage(dmg, kb)
+                        hud.spawn_damage_number(player.pos + Vector2(0, -40), dmg, true)
                         effects.start_hitstop(0.08)
                         effects.start_shake(4.0, 8.0)
                         audio.play("hit_boss")
@@ -735,7 +748,7 @@ func _get_skill_boosted_rage(base_rage: float) -> float:
         return base_rage * skill_tree.get_rage_bonus()
 
 func _check_portal() -> void:
-        var dist_to_portal = abs(warrior.pos.x - portal_pos.x)
+        var dist_to_portal = abs(player.pos.x - portal_pos.x)
         if dist_to_portal < 25:
                 audio.play("portal")
                 GameState.mark_level_cleared("mine")
@@ -743,54 +756,54 @@ func _check_portal() -> void:
                 GameState.go_to_level("boss")
 
 func _check_player_vs_enemies() -> void:
-        if not warrior.is_in_active_frames():
+        if not player.is_in_active_frames():
                 return
         for i in range(enemies.size()):
                 var enemy: Node2D = enemies[i]
                 if enemy.hp <= 0: continue
-                var dist = abs(warrior.pos.x - enemy.pos.x)
+                var dist = abs(player.pos.x - enemy.pos.x)
                 if dist < 65:
-                        var dmg: float = _get_skill_boosted_damage(warrior.get_attack_damage()) * equipment.get_attack_bonus()
+                        var dmg: float = _get_skill_boosted_damage(player.get_attack_damage()) * equipment.get_attack_bonus()
                         enemy.take_damage(dmg)
-                        warrior.mark_hit_dealt()
-                        var hit_pos: Vector2 = (warrior.pos + enemy.pos) / 2 + Vector2(0, -20)
+                        player.mark_hit_dealt()
+                        var hit_pos: Vector2 = (player.pos + enemy.pos) / 2 + Vector2(0, -20)
                         effects.spawn_hit_spark(hit_pos, Color(1, 0.9, 0.5))
                         if dmg >= 20:
                                 effects.start_hitstop(0.08); effects.start_shake(3.0, 8.0); audio.play("hit_heavy")
                         else:
                                 effects.start_hitstop(0.04); effects.start_shake(1.0, 6.0); audio.play("hit_light")
                         hud.spawn_damage_number(enemy.pos + Vector2(0, -40), dmg, dmg >= 20)
-                        warrior.rage = min(warrior.max_rage, warrior.rage + _get_skill_boosted_rage(5.0))
+                        player.rage = min(player.max_rage, player.rage + _get_skill_boosted_rage(5.0))
                         break
 
 func _check_player_vs_bats() -> void:
-        if not warrior.is_in_active_frames():
+        if not player.is_in_active_frames():
                 return
         for i in range(bats.size()):
                 var bat: Node2D = bats[i]
                 if bat.hp <= 0: continue
-                var dist_x = abs(warrior.pos.x - bat.pos.x)
-                var dist_y = abs(warrior.pos.y - bat.pos.y)
+                var dist_x = abs(player.pos.x - bat.pos.x)
+                var dist_y = abs(player.pos.y - bat.pos.y)
                 if dist_x < 65 and dist_y < 50:
-                        var dmg: float = _get_skill_boosted_damage(warrior.get_attack_damage()) * equipment.get_attack_bonus()
+                        var dmg: float = _get_skill_boosted_damage(player.get_attack_damage()) * equipment.get_attack_bonus()
                         bat.take_damage(dmg)
-                        warrior.mark_hit_dealt()
-                        effects.spawn_hit_spark((warrior.pos + bat.pos) / 2, Color(1, 0.6, 0.8))
+                        player.mark_hit_dealt()
+                        effects.spawn_hit_spark((player.pos + bat.pos) / 2, Color(1, 0.6, 0.8))
                         effects.start_hitstop(0.04); effects.start_shake(1.5, 7.0); audio.play("hit_light")
                         hud.spawn_damage_number(bat.pos + Vector2(0, -40), dmg, dmg >= 20)
-                        warrior.rage = min(warrior.max_rage, warrior.rage + _get_skill_boosted_rage(5.0))
+                        player.rage = min(player.max_rage, player.rage + _get_skill_boosted_rage(5.0))
                         break
 
 func _check_enemies_vs_player() -> void:
         for i in range(enemies.size()):
                 var enemy: Node2D = enemies[i]
                 if enemy.hp <= 0: continue
-                var dist = abs(warrior.pos.x - enemy.pos.x)
+                var dist = abs(player.pos.x - enemy.pos.x)
                 if enemy.is_in_attack_active() and not player_hit_by_enemy.get(i, false):
                         if dist < 60:
                                 var dmg: float = _get_skill_reduced_damage(enemy.get_attack_damage()) * (1.0 - equipment.get_defense_bonus())
-                                warrior.take_damage(dmg, Vector2(4 * enemy.facing, -2))
-                                hud.spawn_damage_number(warrior.pos + Vector2(0, -40), dmg, false)
+                                player.take_damage(dmg, Vector2(4 * enemy.facing, -2))
+                                hud.spawn_damage_number(player.pos + Vector2(0, -40), dmg, false)
                                 effects.start_hitstop(0.04); effects.start_shake(2.0, 7.0); audio.play("hurt")
                                 player_hit_by_enemy[i] = true
                 if not enemy.is_in_attack_active():
@@ -801,12 +814,12 @@ func _check_bats_vs_player() -> void:
                 var bat: Node2D = bats[i]
                 if bat.hp <= 0: continue
                 if bat.is_in_attack_active() and not player_hit_by_bat.get(i, false):
-                        var dist_x = abs(warrior.pos.x - bat.pos.x)
-                        var dist_y = abs(warrior.pos.y - bat.pos.y)
+                        var dist_x = abs(player.pos.x - bat.pos.x)
+                        var dist_y = abs(player.pos.y - bat.pos.y)
                         if dist_x < 45 and dist_y < 40:
                                 var dmg: float = _get_skill_reduced_damage(bat.get_attack_damage()) * (1.0 - equipment.get_defense_bonus())
-                                warrior.take_damage(dmg, Vector2(3 * bat.facing, -3))
-                                hud.spawn_damage_number(warrior.pos + Vector2(0, -40), dmg, false)
+                                player.take_damage(dmg, Vector2(3 * bat.facing, -3))
+                                hud.spawn_damage_number(player.pos + Vector2(0, -40), dmg, false)
                                 effects.start_hitstop(0.04); effects.start_shake(1.5, 7.0); audio.play("hurt")
                                 player_hit_by_bat[i] = true
                 if not bat.is_in_attack_active():
@@ -816,7 +829,7 @@ func _process_traps() -> void:
         for i in range(rock_traps.size()):
                 var trap: Dictionary = rock_traps[i]
                 if trap["active"]: continue
-                var dist = abs(warrior.pos.x - trap["x"])
+                var dist = abs(player.pos.x - trap["x"])
                 if dist < 25 and not trap_triggered.get(i, false):
                         trap_triggered[i] = true
                         trap["active"] = true
@@ -836,11 +849,11 @@ func _process_traps() -> void:
                         if node and is_instance_valid(node):
                                 rock_data["vel"].y += 500 * (1.0/60.0)
                                 node.position += rock_data["vel"] * (1.0/60.0)
-                                var rock_dist = abs(warrior.pos.x - node.position.x)
-                                if rock_dist < 20 and abs(warrior.pos.y - 30 - node.position.y) < 30:
+                                var rock_dist = abs(player.pos.x - node.position.x)
+                                if rock_dist < 20 and abs(player.pos.y - 30 - node.position.y) < 30:
                                         var dmg: float = _get_skill_reduced_damage(8.0) * (1.0 - equipment.get_defense_bonus())
-                                        warrior.take_damage(dmg, Vector2(randf_range(-3, 3), -3))
-                                        hud.spawn_damage_number(warrior.pos + Vector2(0, -40), dmg, false)
+                                        player.take_damage(dmg, Vector2(randf_range(-3, 3), -3))
+                                        hud.spawn_damage_number(player.pos + Vector2(0, -40), dmg, false)
                                         audio.play("hurt", 0.5); node.queue_free(); rock_data["node"] = null
                                 if node.position.y >= rock_data["ground_y"]:
                                         effects.start_shake(1.0, 6.0); audio.play("rock_fall", 0.3)
@@ -849,7 +862,7 @@ func _process_traps() -> void:
 func _on_enemy_hit_player(damage: float, knockback: Vector2) -> void: pass
 func _on_enemy_died(pos: Vector2) -> void:
         effects.spawn_hit_spark(pos, Color(0.7, 0.8, 1.0))
-        warrior.rage = min(warrior.max_rage, warrior.rage + _get_skill_boosted_rage(15.0))
+        player.rage = min(player.max_rage, player.rage + _get_skill_boosted_rage(15.0))
         hud.show_perfect("+15 RAGE", Color(0.5, 0.8, 1.0)); audio.play("enemy_die")
         GameState.total_kills += 1
         drop_system.spawn_drop(pos, "wraith", GROUND_Y)
@@ -861,7 +874,7 @@ func _on_enemy_died(pos: Vector2) -> void:
 func _on_bat_hit_player(damage: float, knockback: Vector2) -> void: pass
 func _on_bat_died(pos: Vector2) -> void:
         effects.spawn_hit_spark(pos, Color(0.8, 0.5, 0.9))
-        warrior.rage = min(warrior.max_rage, warrior.rage + _get_skill_boosted_rage(10.0))
+        player.rage = min(player.max_rage, player.rage + _get_skill_boosted_rage(10.0))
         hud.show_perfect("+10 RAGE", Color(0.8, 0.5, 0.9)); audio.play("enemy_die")
         GameState.total_kills += 1
         drop_system.spawn_drop(pos, "bat", GROUND_Y)
@@ -888,18 +901,18 @@ func _cleanup_dead_bats() -> void:
 
 func _update_visuals() -> void:
         var shake = camera_offset
-        player_sprite.position = warrior.pos + Vector2(0, -32) + shake
-        player_sprite.flip_h = (warrior.facing < 0)
-        if warrior.invincible_timer > 0:
+        player_sprite.position = player.pos + Vector2(0, -32) + shake
+        player_sprite.flip_h = (player.facing < 0)
+        if player.invincible_timer > 0:
                 player_sprite.visible = int(frame_count / 3) % 2 == 0
         else:
                 player_sprite.visible = true
-        if warrior.war_cry_buff:
+        if player.war_cry_buff:
                 if int(frame_count / 4) % 3 == 0: player_sprite.modulate = Color(1.2, 1.0, 0.7)
                 else: player_sprite.modulate = Color(1, 1, 1)
-        if warrior.is_guarding and warrior.is_perfect_parry_window:
+        if player.is_guarding and player.is_perfect_parry_window:
                 parry_indicator.visible = true
-                parry_indicator.position = warrior.pos + Vector2(-10 * warrior.facing, -42) + shake
+                parry_indicator.position = player.pos + Vector2(-10 * player.facing, -42) + shake
         else:
                 parry_indicator.visible = false
         for i in range(enemies.size()):
@@ -912,7 +925,7 @@ func _update_visuals() -> void:
                         bat_sprites[i].flip_h = (bats[i].facing < 0)
 
 func _save_state() -> void:
-        GameState.save_player_state(warrior.hp, warrior.rage, warrior.hit_count)
+        GameState.save_player_state(player.hp, player.rage, player.hit_count)
         GameState.save_resources(drop_system.ore_fragments, skill_tree.get_skill_data())
         var pickup_counts: Dictionary = drop_system.get_pickup_counts()
         GameState.save_pickup_counts(pickup_counts["ore_fragments"], pickup_counts["health_potions"], pickup_counts["rage_crystals"])
@@ -930,7 +943,7 @@ func _take_screenshot(filename: String) -> void:
 
 func _run_demo() -> void:
         match frame_count:
-                60: warrior.vel.x = 200; warrior.facing = 1.0
-                100: warrior.do_attack("L"); audio.play("swing")
-                140: warrior.do_attack("L"); audio.play("swing")
-                180: warrior.vel.x = 0
+                60: player.vel.x = 200; player.facing = 1.0
+                100: player.do_attack("L"); audio.play("swing")
+                140: player.do_attack("L"); audio.play("swing")
+                180: player.vel.x = 0

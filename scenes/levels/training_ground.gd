@@ -1,4 +1,4 @@
-## 训练场 - Beta v0.12
+## 训练场 - Beta v0.13
 ## 打击感增强版 + 连击计数 + 判定帧 + 粒子特效
 ## v0.8：版本号同步
 extends Node2D
@@ -67,6 +67,7 @@ var combo_label: Label
 var perfect_label: Label
 var skill_label_1: Label
 var skill_label_2: Label
+var guard_text: String = "L:闪避" if GameState.is_ranger() else "L:格挡"
 var hit_count_label: Label
 var hit_effects: Array = []
 
@@ -254,14 +255,14 @@ func _build_hud() -> void:
         add_child(mark50)
 
         skill_label_1 = Label.new()
-        skill_label_1.text = "[U]战吼 50怒气"
+        skill_label_1.text = "[U]影步 2CP" if GameState.is_ranger() else "[U]战吼 50怒气"
         skill_label_1.position = Vector2(10, 32)
         skill_label_1.add_theme_font_size_override("font_size", 7)
         skill_label_1.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 0.7))
         add_child(skill_label_1)
 
         skill_label_2 = Label.new()
-        skill_label_2.text = "[I]裂地斩 100怒气"
+        skill_label_2.text = "[I]刃风暴 5CP" if GameState.is_ranger() else "[I]裂地斩 100怒气"
         skill_label_2.position = Vector2(10, 40)
         skill_label_2.add_theme_font_size_override("font_size", 7)
         skill_label_2.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 0.7))
@@ -295,14 +296,15 @@ func _build_hud() -> void:
         add_child(title)
 
         var ver = Label.new()
-        ver.text = "v0.12"
+        ver.text = "v0.13"
         ver.position = Vector2(590, 5)
         ver.add_theme_font_size_override("font_size", 7)
         ver.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 0.6))
         add_child(ver)
 
         var hint = Label.new()
-        hint.text = "R:矿井关卡  Esc:主菜单"
+        var guard_hint: String = "L:闪避" if GameState.is_ranger() else "L:格挡"
+        hint.text = "R:矿井关卡  " + guard_hint + "  Esc:主菜单"
         hint.position = Vector2(80, 350)
         hint.add_theme_font_size_override("font_size", 7)
         hint.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55, 0.7))

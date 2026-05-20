@@ -1,0 +1,53 @@
+# Ranger (游侠) Sprite Sheet Metadata
+# Full sheet: 512x192 (8 cols x 3 rows)
+# Frame size: 64x64
+# Total frames: 22
+
+[idle]
+  start_frame = 0
+  frame_count = 4
+  col = 0
+  row = 0
+
+[run]
+  start_frame = 4
+  frame_count = 4
+  col = 4
+  row = 0
+
+[attack]
+  start_frame = 8
+  frame_count = 4
+  col = 0
+  row = 1
+
+[dodge]
+  start_frame = 12
+  frame_count = 2
+  col = 4
+  row = 1
+
+[jump]
+  start_frame = 14
+  frame_count = 2
+  col = 6
+  row = 1
+
+[hurt]
+  start_frame = 16
+  frame_count = 2
+  col = 0
+  row = 2
+
+[shadow_step]
+  start_frame = 18
+  frame_count = 2
+  col = 2
+  row = 2
+
+[blade_storm]
+  start_frame = 20
+  frame_count = 2
+  col = 4
+  row = 2
+
