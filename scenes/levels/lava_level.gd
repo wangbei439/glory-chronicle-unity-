@@ -1,4 +1,4 @@
-## 失落地脉关卡 - Beta v0.13
+## 失落地脉关卡 - Beta v0.14
 ## 设计文档§2.1：元素区域，服务"环境反应"
 ## 3房间滚动关卡，含熔岩池(触碰持续伤害)和间歇泉(定时喷发)
 ## 关底Boss：远古熔岩龟
@@ -36,6 +36,7 @@ var bat_sprites: Array = []
 
 # 视觉
 var player_sprite: AnimatedSprite2D
+var player_shadow: TextureRect
 var parry_indicator: ColorRect
 var camera_offset: Vector2 = Vector2.ZERO
 
@@ -95,6 +96,18 @@ func _ready() -> void:
         _build_scene()
 
 func _build_scene() -> void:
+        # === 视差背景层（3个房间拼接）===
+        for i in range(3):
+                var far_tex = load("res://assets/sprites/background/parallax_lava_far.png")
+                if far_tex:
+                        var parallax = TextureRect.new()
+                        parallax.texture = far_tex
+                        parallax.size = Vector2(640, 360)
+                        parallax.position = Vector2(i * 640, 0)
+                        parallax.stretch_mode = TextureRect.STRETCH_SCALE
+                        parallax.modulate = Color(1, 1, 1, 0.6)
+                        add_child(parallax)
+
         # === 背景（3个房间拼接）===
         for i in range(3):
                 var bg_tex = load("res://assets/sprites/background/lava_vein_640x360.png")
@@ -128,6 +141,9 @@ func _build_scene() -> void:
         # === 地面 ===
         _build_ground()
 
+        # === 环境装饰 ===
+        _build_environment_decor()
+
         # === 房间1：入口（熔岩蜥蜴+火焰蝠+熔岩池）===
         _build_room_entrance()
 
@@ -157,6 +173,7 @@ func _build_scene() -> void:
         effects = Node2D.new()
         effects.set_script(effects_script)
         add_child(effects)
+        effects.setup_ambient("embers", 12)
 
         # === 掉落系统 ===
         var drop_script = load("res://scripts/core/drop_system.gd")
@@ -235,6 +252,16 @@ func _build_scene() -> void:
         add_child(parry_indicator)
         player.parry_indicator = parry_indicator
 
+        # === 玩家阴影 ===
+        var shadow_tex = load("res://assets/sprites/common/shadow_ellipse.png")
+        player_shadow = TextureRect.new()
+        if shadow_tex:
+                player_shadow.texture = shadow_tex
+        player_shadow.size = Vector2(32, 8)
+        player_shadow.modulate = Color(1, 1, 1, 0.5)
+        player_shadow.visible = false
+        add_child(player_shadow)
+
         drop_system.set_player(player)
         drop_system.set_hud(null)
         drop_system.set_audio(audio)
@@ -267,7 +294,7 @@ func _build_scene() -> void:
 
         # === 版本/操作提示 ===
         var ver = Label.new()
-        ver.text = "v0.13"
+        ver.text = "v0.14"
         ver.position = Vector2(600, 350)
         ver.add_theme_font_size_override("font_size", 7)
         ver.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 0.6))
@@ -286,18 +313,29 @@ func _build_scene() -> void:
         _show_room_name("失落地脉 - 入口")
 
 func _build_ground() -> void:
-        # 地面（覆盖3个房间）
+        # 地面顶部线（更好的颜色）
         var ground_top = ColorRect.new()
         ground_top.position = Vector2(0, 329)
         ground_top.size = Vector2(LEVEL_WIDTH, 2)
-        ground_top.color = Color(0.4, 0.25, 0.15, 0.8)
+        ground_top.color = Color(0.5, 0.3, 0.2, 0.9)
         add_child(ground_top)
 
-        var ground = ColorRect.new()
-        ground.position = Vector2(0, 330)
-        ground.size = Vector2(LEVEL_WIDTH, 30)
-        ground.color = Color(0.18, 0.1, 0.08, 0.7)
-        add_child(ground)
+        # 地面主体（覆盖3个房间）- 使用熔岩地砖纹理
+        var ground_tex = load("res://assets/sprites/tiles/ground_lava_32.png")
+        for x in range(0, 1920, 32):
+                if ground_tex:
+                        var tile = TextureRect.new()
+                        tile.texture = ground_tex
+                        tile.size = Vector2(32, 32)
+                        tile.position = Vector2(x, 322)
+                        tile.stretch_mode = TextureRect.STRETCH_SCALE
+                        add_child(tile)
+                else:
+                        var tile_fallback = ColorRect.new()
+                        tile_fallback.position = Vector2(x, 322)
+                        tile_fallback.size = Vector2(32, 32)
+                        tile_fallback.color = Color(0.18, 0.1, 0.08, 0.7)
+                        add_child(tile_fallback)
 
         # 岩浆裂缝装饰
         for x in range(0, 1920, 40):
@@ -307,6 +345,105 @@ func _build_ground() -> void:
                         crack.size = Vector2(randf_range(5, 15), 2)
                         crack.color = Color(0.8, 0.3, 0.05, 0.5)
                         add_child(crack)
+
+        # 底部大气渐变
+        var atmo_grad = ColorRect.new()
+        atmo_grad.size = Vector2(640, 40)
+        atmo_grad.position = Vector2(0, 320)
+        atmo_grad.color = Color(0.1, 0.03, 0.02, 0.35)
+        add_child(atmo_grad)
+
+func _build_environment_decor() -> void:
+        """环境装饰：火把、水晶、钟乳石、余烬"""
+        var torch_tex = load("res://assets/sprites/environment/torch_sheet.png")
+
+        # 火把 - 每个房间2个，放在墙壁上
+        var torch_positions = [
+                Vector2(80, 160), Vector2(550, 140),
+                Vector2(720, 150), Vector2(1220, 130),
+                Vector2(1380, 160), Vector2(1780, 140),
+        ]
+        for tpos in torch_positions:
+                if torch_tex:
+                        var torch = TextureRect.new()
+                        torch.texture = torch_tex
+                        torch.size = Vector2(12, 20)
+                        torch.position = tpos
+                        torch.stretch_mode = TextureRect.STRETCH_SCALE
+                        add_child(torch)
+                else:
+                        # 火把备用：火光
+                        var torch_glow = ColorRect.new()
+                        torch_glow.position = tpos
+                        torch_glow.size = Vector2(12, 20)
+                        torch_glow.color = Color(0.9, 0.5, 0.1, 0.6)
+                        add_child(torch_glow)
+                # 火把光晕
+                var torch_light = ColorRect.new()
+                torch_light.position = tpos + Vector2(-4, -4)
+                torch_light.size = Vector2(20, 10)
+                torch_light.color = Color(1.0, 0.6, 0.15, 0.15)
+                add_child(torch_light)
+
+        # 水晶簇（紫色调）- 地面上3-4个
+        var crystal_positions = [
+                Vector2(150, 315), Vector2(500, 318),
+                Vector2(900, 316), Vector2(1350, 317),
+        ]
+        for cpos in crystal_positions:
+                # 水晶主体
+                var crystal = ColorRect.new()
+                crystal.position = cpos
+                crystal.size = Vector2(6, 12)
+                crystal.color = Color(0.6, 0.3, 0.8, 0.7)
+                add_child(crystal)
+                # 水晶高光
+                var crystal_hl = ColorRect.new()
+                crystal_hl.position = cpos + Vector2(1, 0)
+                crystal_hl.size = Vector2(2, 8)
+                crystal_hl.color = Color(0.8, 0.5, 1.0, 0.5)
+                add_child(crystal_hl)
+                # 水晶光晕
+                var crystal_glow = ColorRect.new()
+                crystal_glow.position = cpos + Vector2(-3, 6)
+                crystal_glow.size = Vector2(12, 6)
+                crystal_glow.color = Color(0.5, 0.2, 0.7, 0.15)
+                add_child(crystal_glow)
+
+        # 钟乳石 - 天花板4-5个
+        var stalactite_positions = [
+                Vector2(120, 0), Vector2(350, 0),
+                Vector2(700, 0), Vector2(1000, 0),
+                Vector2(1600, 0),
+        ]
+        for spos in stalactite_positions:
+                var st_length: float = randf_range(20, 40)
+                var st_width: float = randf_range(4, 8)
+                # 钟乳石主体
+                var stalactite = ColorRect.new()
+                stalactite.position = spos
+                stalactite.size = Vector2(st_width, st_length)
+                stalactite.color = Color(0.25, 0.15, 0.12, 0.7)
+                add_child(stalactite)
+                # 钟乳石尖端
+                var st_tip = ColorRect.new()
+                st_tip.position = spos + Vector2(st_width / 2 - 1, st_length)
+                st_tip.size = Vector2(2, 4)
+                st_tip.color = Color(0.35, 0.2, 0.15, 0.8)
+                add_child(st_tip)
+
+        # 余烬发光粒子（散落的2x2小点）
+        for _e in range(20):
+                var ember = ColorRect.new()
+                var ex: float = randf_range(0, 1920)
+                var ey: float = randf_range(200, 325)
+                ember.position = Vector2(ex, ey)
+                ember.size = Vector2(2, 2)
+                if randf() < 0.5:
+                        ember.color = Color(1.0, 0.5, 0.1, randf_range(0.2, 0.5))
+                else:
+                        ember.color = Color(1.0, 0.3, 0.05, randf_range(0.2, 0.4))
+                add_child(ember)
 
 func _build_room_entrance() -> void:
         """房间1：入口 - 熔岩蜥蜴+火焰蝠+熔岩池"""
@@ -371,19 +508,31 @@ func _build_room_boss_gate() -> void:
         var gate_arch = ColorRect.new()
         gate_arch.position = Vector2(1830, 220)
         gate_arch.size = Vector2(60, 110)
-        gate_arch.color = Color(0.2, 0.1, 0.12, 0.9)
+        gate_arch.color = Color(0.25, 0.1, 0.08, 0.95)
         add_child(gate_arch)
         var gate_top = ColorRect.new()
         gate_top.position = Vector2(1825, 215)
         gate_top.size = Vector2(70, 8)
         gate_top.color = Color(0.35, 0.15, 0.1, 0.8)
         add_child(gate_top)
-        # 门上发光符文
+        # 门上发光符文（更大光晕）
         var gate_glow = ColorRect.new()
-        gate_glow.position = Vector2(1850, 250)
-        gate_glow.size = Vector2(20, 20)
-        gate_glow.color = Color(0.9, 0.4, 0.1, 0.4)
+        gate_glow.position = Vector2(1846, 246)
+        gate_glow.size = Vector2(28, 28)
+        gate_glow.color = Color(0.9, 0.4, 0.1, 0.6)
         add_child(gate_glow)
+        # 左侧火碗
+        var fire_bowl_l = ColorRect.new()
+        fire_bowl_l.position = Vector2(1830, 270)
+        fire_bowl_l.size = Vector2(4, 6)
+        fire_bowl_l.color = Color(1, 0.6, 0.1, 0.7)
+        add_child(fire_bowl_l)
+        # 右侧火碗
+        var fire_bowl_r = ColorRect.new()
+        fire_bowl_r.position = Vector2(1886, 270)
+        fire_bowl_r.size = Vector2(4, 6)
+        fire_bowl_r.color = Color(1, 0.6, 0.1, 0.7)
+        add_child(fire_bowl_r)
 
         # 强敌
         _spawn_enemy(Vector2(1400, GROUND_Y), 200)
@@ -397,37 +546,78 @@ func _build_room_boss_gate() -> void:
         _build_portal()
 
 func _build_platform(x: float, y: float, width: float) -> void:
-        var plat = ColorRect.new()
-        plat.position = Vector2(x, y)
-        plat.size = Vector2(width, 6)
-        plat.color = Color(0.3, 0.18, 0.12, 0.8)
-        add_child(plat)
-        # 支撑柱
+        # 平台顶部 - 使用石砖纹理平铺
+        var plat_tex = load("res://assets/sprites/tiles/platform_stone_32.png")
+        for tx in range(0, int(width), 32):
+                var tile_w: float = min(32.0, width - tx)
+                if plat_tex:
+                        var plat_tile = TextureRect.new()
+                        plat_tile.texture = plat_tex
+                        plat_tile.size = Vector2(tile_w, 6)
+                        plat_tile.position = Vector2(x + tx, y)
+                        plat_tile.stretch_mode = TextureRect.STRETCH_SCALE
+                        add_child(plat_tile)
+                else:
+                        var plat_fallback = ColorRect.new()
+                        plat_fallback.position = Vector2(x + tx, y)
+                        plat_fallback.size = Vector2(tile_w, 6)
+                        plat_fallback.color = Color(0.3, 0.18, 0.12, 0.8)
+                        add_child(plat_fallback)
+        # 支撑柱（加宽4px）
         var support = ColorRect.new()
-        support.position = Vector2(x + 2, y + 6)
-        support.size = Vector2(2, GROUND_Y - y - 6)
-        support.color = Color(0.2, 0.12, 0.08, 0.4)
+        support.position = Vector2(x, y + 6)
+        support.size = Vector2(4, GROUND_Y - y - 6)
+        support.color = Color(0.25, 0.15, 0.1, 0.6)
         add_child(support)
+        # 左柱高光
+        var support_hl = ColorRect.new()
+        support_hl.position = Vector2(x, y + 6)
+        support_hl.size = Vector2(1, GROUND_Y - y - 6)
+        support_hl.color = Color(0.35, 0.2, 0.15, 0.7)
+        add_child(support_hl)
         var support2 = ColorRect.new()
         support2.position = Vector2(x + width - 4, y + 6)
-        support2.size = Vector2(2, GROUND_Y - y - 6)
-        support2.color = Color(0.2, 0.12, 0.08, 0.4)
+        support2.size = Vector2(4, GROUND_Y - y - 6)
+        support2.color = Color(0.25, 0.15, 0.1, 0.6)
         add_child(support2)
+        # 右柱高光
+        var support2_hl = ColorRect.new()
+        support2_hl.position = Vector2(x + width - 1, y + 6)
+        support2_hl.size = Vector2(1, GROUND_Y - y - 6)
+        support2_hl.color = Color(0.35, 0.2, 0.15, 0.7)
+        add_child(support2_hl)
 
 func _add_lava_pool(x: float, width: float) -> void:
         """创建地面熔岩池"""
+        # 外层发光（动画用）
+        var outer_glow = ColorRect.new()
+        outer_glow.position = Vector2(x - 4, 324)
+        outer_glow.size = Vector2(width + 8, 10)
+        outer_glow.color = Color(1, 0.4, 0.05, 0.2)
+        add_child(outer_glow)
+
+        # 主池体（加高到6px）
         var pool_node = ColorRect.new()
         pool_node.position = Vector2(x, 326)
-        pool_node.size = Vector2(width, 4)
+        pool_node.size = Vector2(width, 6)
         pool_node.color = Color(0.9, 0.35, 0.05, 0.8)
         add_child(pool_node)
 
-        # 熔岩发光
-        var glow = ColorRect.new()
-        glow.position = Vector2(x - 2, 324)
-        glow.size = Vector2(width + 4, 8)
-        glow.color = Color(1.0, 0.5, 0.1, 0.3)
-        add_child(glow)
+        # 明亮核心
+        var bright_core = ColorRect.new()
+        bright_core.position = Vector2(x + 2, 328)
+        bright_core.size = Vector2(width - 4, 2)
+        bright_core.color = Color(1, 0.8, 0.2, 0.6)
+        add_child(bright_core)
+
+        # 气泡装饰
+        for _b in range(3):
+                var bubble = ColorRect.new()
+                var bx: float = x + randf_range(2, width - 4)
+                bubble.position = Vector2(bx, 327 + randf_range(0, 3))
+                bubble.size = Vector2(2, 2)
+                bubble.color = Color(1, 0.9, 0.3, 0.7)
+                add_child(bubble)
 
         lava_pools.append({"x": x, "width": width, "node": pool_node})
 
@@ -453,6 +643,20 @@ func _add_geyser(x: float, y: float, interval: float) -> void:
         })
 
 func _build_portal() -> void:
+        # 橙色光晕
+        var portal_orange_glow = ColorRect.new()
+        portal_orange_glow.size = Vector2(20, 58)
+        portal_orange_glow.position = portal_pos + Vector2(-4, -54)
+        portal_orange_glow.color = Color(1, 0.5, 0.1, 0.15)
+        add_child(portal_orange_glow)
+
+        # 内部脉冲
+        var portal_inner_pulse = ColorRect.new()
+        portal_inner_pulse.size = Vector2(8, 40)
+        portal_inner_pulse.position = portal_pos + Vector2(2, -44)
+        portal_inner_pulse.color = Color(1, 0.7, 0.2, 0.3)
+        add_child(portal_inner_pulse)
+
         portal = ColorRect.new()
         portal.size = Vector2(12, 50)
         portal.position = portal_pos + Vector2(0, -50)
@@ -986,6 +1190,12 @@ func _update_visuals() -> void:
                 parry_indicator.position = player.pos + Vector2(-10 * player.facing, -42) + shake
         else:
                 parry_indicator.visible = false
+        # 玩家阴影
+        var near_ground: bool = player.pos.y >= GROUND_Y - 5
+        if player_shadow:
+                player_shadow.visible = near_ground
+                if near_ground:
+                        player_shadow.position = player.pos + Vector2(-16, -2) + shake
         for i in range(enemies.size()):
                 if i < enemy_sprites.size() and is_instance_valid(enemy_sprites[i]):
                         enemy_sprites[i].position = enemies[i].pos + Vector2(0, -32) + shake

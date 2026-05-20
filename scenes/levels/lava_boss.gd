@@ -1,6 +1,7 @@
-## 远古熔岩龟 Boss 战 - Beta v0.13
+## 远古熔岩龟 Boss 战 - Beta v0.14
 ## 失地产脉关底Boss战
 ## 特色：熔岩喷吐、龟壳旋转(霸体+硬直窗口)、熔岩雨(狂暴AOE)
+## v0.14：视效升级（视差背景、地面贴图、环境装饰、玩家阴影、环境粒子）
 extends Node2D
 
 const GROUND_Y: float = 309.0
@@ -26,6 +27,7 @@ var crafting_system: Node2D
 # 视觉
 var player_sprite: AnimatedSprite2D
 var boss_sprite: AnimatedSprite2D
+var player_shadow: TextureRect
 var parry_indicator: ColorRect
 var camera_offset: Vector2 = Vector2.ZERO
 
@@ -58,7 +60,17 @@ func _ready() -> void:
         _build_scene()
 
 func _build_scene() -> void:
-        # 背景
+        # === 视差背景（远景熔岩）===
+        var far_tex = load("res://assets/sprites/background/parallax_lava_far.png")
+        if far_tex:
+                var far_bg = TextureRect.new()
+                far_bg.texture = far_tex
+                far_bg.size = Vector2(640, 360)
+                far_bg.stretch_mode = TextureRect.STRETCH_SCALE
+                far_bg.modulate = Color(0.8, 0.5, 0.4, 0.5)
+                add_child(far_bg)
+
+        # 主背景
         var bg_tex = load("res://assets/sprites/background/lava_vein_640x360.png")
         if bg_tex:
                 var bg = TextureRect.new()
@@ -72,17 +84,92 @@ func _build_scene() -> void:
                 bg2.color = Color(0.12, 0.05, 0.06, 1.0)
                 add_child(bg2)
 
-        # 地面
-        var ground_top = ColorRect.new()
-        ground_top.position = Vector2(0, 329)
-        ground_top.size = Vector2(640, 2)
-        ground_top.color = Color(0.4, 0.25, 0.15, 0.8)
-        add_child(ground_top)
-        var ground = ColorRect.new()
-        ground.position = Vector2(0, 330)
-        ground.size = Vector2(640, 30)
-        ground.color = Color(0.18, 0.1, 0.08, 0.7)
-        add_child(ground)
+        # === 地面贴图（ground_lava_32.png tiles）===
+        var ground_tile_tex = load("res://assets/sprites/tiles/ground_lava_32.png")
+        var tile_count: int = 20  # 640 / 32 = 20
+        if ground_tile_tex:
+                for tx in range(tile_count):
+                        var tile = TextureRect.new()
+                        tile.texture = ground_tile_tex
+                        tile.size = Vector2(32, 32)
+                        tile.position = Vector2(tx * 32, 328)
+                        tile.stretch_mode = TextureRect.STRETCH_SCALE
+                        add_child(tile)
+        else:
+                # fallback
+                var ground_top = ColorRect.new()
+                ground_top.position = Vector2(0, 329)
+                ground_top.size = Vector2(640, 2)
+                ground_top.color = Color(0.4, 0.25, 0.15, 0.8)
+                add_child(ground_top)
+                var ground = ColorRect.new()
+                ground.position = Vector2(0, 330)
+                ground.size = Vector2(640, 30)
+                ground.color = Color(0.18, 0.1, 0.08, 0.7)
+                add_child(ground)
+
+        # === 环境装饰 ===
+        # 火炬 x4
+        var torch_positions: Array = [Vector2(50, 290), Vector2(220, 290), Vector2(420, 290), Vector2(590, 290)]
+        var torch_tex = load("res://assets/sprites/environment/torch_0.png")
+        for tp in torch_positions:
+                if torch_tex:
+                        var torch_sprite = TextureRect.new()
+                        torch_sprite.texture = torch_tex
+                        torch_sprite.size = Vector2(16, 24)
+                        torch_sprite.position = tp
+                        torch_sprite.stretch_mode = TextureRect.STRETCH_SCALE
+                        add_child(torch_sprite)
+                else:
+                        var torch_fallback = ColorRect.new()
+                        torch_fallback.size = Vector2(6, 16)
+                        torch_fallback.position = tp
+                        torch_fallback.color = Color(0.7, 0.4, 0.1)
+                        add_child(torch_fallback)
+                # 火焰光晕
+                var torch_glow = ColorRect.new()
+                torch_glow.size = Vector2(24, 24)
+                torch_glow.position = tp + Vector2(-4, -8)
+                torch_glow.color = Color(1.0, 0.5, 0.15, 0.2)
+                add_child(torch_glow)
+
+        # 水晶 x3
+        var crystal_positions: Array = [Vector2(150, 298), Vector2(350, 300), Vector2(520, 296)]
+        var crystal_tex = load("res://assets/sprites/environment/crystal_cluster_0.png")
+        for cp in crystal_positions:
+                if crystal_tex:
+                        var crystal_sprite = TextureRect.new()
+                        crystal_sprite.texture = crystal_tex
+                        crystal_sprite.size = Vector2(16, 20)
+                        crystal_sprite.position = cp
+                        crystal_sprite.stretch_mode = TextureRect.STRETCH_SCALE
+                        crystal_sprite.modulate = Color(1.0, 0.6, 0.4, 0.9)
+                        add_child(crystal_sprite)
+                else:
+                        var crystal_fallback = ColorRect.new()
+                        crystal_fallback.size = Vector2(8, 14)
+                        crystal_fallback.position = cp
+                        crystal_fallback.color = Color(0.9, 0.4, 0.2, 0.8)
+                        add_child(crystal_fallback)
+
+        # 钟乳石 x3
+        var stalactite_positions: Array = [Vector2(100, 0), Vector2(320, 0), Vector2(540, 0)]
+        var stalactite_tex = load("res://assets/sprites/environment/stalactite_small.png")
+        for sp in stalactite_positions:
+                if stalactite_tex:
+                        var stalactite_sprite = TextureRect.new()
+                        stalactite_sprite.texture = stalactite_tex
+                        stalactite_sprite.size = Vector2(12, 32)
+                        stalactite_sprite.position = sp
+                        stalactite_sprite.stretch_mode = TextureRect.STRETCH_SCALE
+                        stalactite_sprite.modulate = Color(0.8, 0.5, 0.4, 0.7)
+                        add_child(stalactite_sprite)
+                else:
+                        var stalactite_fallback = ColorRect.new()
+                        stalactite_fallback.size = Vector2(6, 24)
+                        stalactite_fallback.position = sp
+                        stalactite_fallback.color = Color(0.5, 0.3, 0.25, 0.7)
+                        add_child(stalactite_fallback)
 
         # 地面熔岩池（装饰+伤害区域）
         lava_pool = ColorRect.new()
@@ -116,6 +203,22 @@ func _build_scene() -> void:
         effects = Node2D.new()
         effects.set_script(effects_script)
         add_child(effects)
+        effects.setup_ambient("embers", 10)
+
+        # === 玩家阴影 ===
+        var shadow_tex = load("res://assets/sprites/common/shadow_ellipse.png")
+        if shadow_tex:
+                player_shadow = TextureRect.new()
+                player_shadow.texture = shadow_tex
+                player_shadow.size = Vector2(28, 8)
+                player_shadow.stretch_mode = TextureRect.STRETCH_SCALE
+                player_shadow.modulate = Color(1, 1, 1, 0.35)
+                add_child(player_shadow)
+        else:
+                var shadow_fallback = ColorRect.new()
+                shadow_fallback.size = Vector2(28, 8)
+                shadow_fallback.color = Color(0, 0, 0, 0.2)
+                add_child(shadow_fallback)
 
         # 玩家（双职业）
         var player_script: GDScript = null
@@ -223,7 +326,7 @@ func _build_scene() -> void:
 
         # 版本号
         var ver = Label.new()
-        ver.text = "v0.13"
+        ver.text = "v0.14"
         ver.position = Vector2(600, 350)
         ver.add_theme_font_size_override("font_size", 7)
         ver.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 0.6))
@@ -734,6 +837,10 @@ func _update_hud() -> void:
 
 func _update_visuals() -> void:
         var shake = camera_offset
+
+        # 更新玩家阴影位置
+        if player_shadow:
+                player_shadow.position = Vector2(player.pos.x - 14, GROUND_Y - 2) + shake
 
         player_sprite.position = player.pos + Vector2(0, -32) + shake
         player_sprite.flip_h = (player.facing < 0)

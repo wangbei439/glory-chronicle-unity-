@@ -24,6 +24,26 @@ func set_drop_system(ds: Node2D) -> void:
 
 func build() -> void:
         """构建物品栏UI面板"""
+        # 边框（纹理面板框架）
+        var border_frame_tex = load("res://assets/sprites/ui/panel_frame_280x200.png")
+        var border: TextureRect = null
+        if border_frame_tex:
+                border = TextureRect.new()
+                border.texture = border_frame_tex
+                border.size = Vector2(264, 204)
+                border.position = Vector2(188, 78)
+                border.stretch_mode = TextureRect.STRETCH_SCALE
+                border.visible = false
+                add_child(border)
+        else:
+                var border_fallback = ColorRect.new()
+                border_fallback.size = Vector2(264, 204)
+                border_fallback.position = Vector2(188, 78)
+                border_fallback.color = Color(0.4, 0.35, 0.3, 0.8)
+                border_fallback.visible = false
+                add_child(border_fallback)
+        panel_nodes.append(border if border else get_child(get_child_count() - 1))
+
         # 背景
         var panel_bg = ColorRect.new()
         panel_bg.size = Vector2(260, 200)
@@ -32,15 +52,6 @@ func build() -> void:
         panel_bg.visible = false
         add_child(panel_bg)
         panel_nodes.append(panel_bg)
-
-        # 边框
-        var border = ColorRect.new()
-        border.size = Vector2(264, 204)
-        border.position = Vector2(188, 78)
-        border.color = Color(0.4, 0.35, 0.3, 0.8)
-        border.visible = false
-        add_child(border)
-        panel_nodes.append(border)
 
         # 标题
         var title = Label.new()
@@ -63,10 +74,20 @@ func build() -> void:
         for i in range(items_data.size()):
                 var info = items_data[i]
 
-                # 物品图标（小色块）
+                # 行分隔线
+                if i > 0:
+                        var sep_line = ColorRect.new()
+                        sep_line.size = Vector2(220, 1)
+                        sep_line.position = Vector2(210, start_y + i * 28 - 5)
+                        sep_line.color = Color(0.25, 0.25, 0.3, 0.3)
+                        sep_line.visible = false
+                        add_child(sep_line)
+                        panel_nodes.append(sep_line)
+
+                # 物品图标（稍大 14x14）
                 var icon = ColorRect.new()
-                icon.size = Vector2(12, 12)
-                icon.position = Vector2(206, start_y + i * 28)
+                icon.size = Vector2(14, 14)
+                icon.position = Vector2(206, start_y + i * 28 - 1)
                 icon.color = info["color"]
                 icon.visible = false
                 add_child(icon)

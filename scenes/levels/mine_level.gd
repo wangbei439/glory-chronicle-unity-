@@ -1,4 +1,4 @@
-## 幽影矿井关卡 - Beta v0.13
+## 幽影矿井关卡 - Beta v0.14
 ## 多房间滚动关卡：入口(640px)→矿道深处(640px)→Boss门前(640px)
 ## 总宽度1920px，摄像机跟随滚动
 ## v0.9: 多房间地图、矿车障碍、存档集成、物品栏
@@ -38,6 +38,7 @@ var bat_sprites: Array = []
 # 视觉
 var player_sprite: AnimatedSprite2D
 var parry_indicator: ColorRect
+var player_shadow: TextureRect
 var camera_offset: Vector2 = Vector2.ZERO
 
 # 状态
@@ -79,6 +80,28 @@ func _ready() -> void:
         _build_scene()
 
 func _build_scene() -> void:
+        # === 视差背景层 ===
+        var parallax_far_tex: Texture2D = load("res://assets/sprites/background/parallax_mine_far.png")
+        for i in range(3):
+                var pfar: TextureRect = TextureRect.new()
+                if parallax_far_tex:
+                        pfar.texture = parallax_far_tex
+                pfar.size = Vector2(640, 360)
+                pfar.position = Vector2(i * 640, 0)
+                pfar.modulate = Color(1, 1, 1, 0.5)
+                pfar.stretch_mode = TextureRect.STRETCH_SCALE
+                add_child(pfar)
+        var parallax_mid_tex: Texture2D = load("res://assets/sprites/background/parallax_mine_mid.png")
+        for i in range(3):
+                var pmid: TextureRect = TextureRect.new()
+                if parallax_mid_tex:
+                        pmid.texture = parallax_mid_tex
+                pmid.size = Vector2(640, 360)
+                pmid.position = Vector2(i * 640, 0)
+                pmid.modulate = Color(1, 1, 1, 0.3)
+                pmid.stretch_mode = TextureRect.STRETCH_SCALE
+                add_child(pmid)
+
         # === 背景（3个房间的拼接背景）===
         for i in range(3):
                 var bg_tex = load("res://assets/sprites/background/dungeon_mine_640x360.png")
@@ -109,8 +132,18 @@ func _build_scene() -> void:
                 cap_l.color = Color(0.18, 0.15, 0.22, 0.7)
                 add_child(cap_l)
 
+        # === 环境装饰 ===
+        _build_environment_decor()
+
         # === 地面 ===
         _build_ground()
+
+        # 底部氛围渐变
+        var bottom_gradient: ColorRect = ColorRect.new()
+        bottom_gradient.size = Vector2(640, 40)
+        bottom_gradient.position = Vector2(0, 320)
+        bottom_gradient.color = Color(0, 0, 0, 0.3)
+        add_child(bottom_gradient)
 
         # === 房间1：入口（小怪+蝙蝠）===
         _build_room_entrance()
@@ -141,6 +174,7 @@ func _build_scene() -> void:
         effects = Node2D.new()
         effects.set_script(effects_script)
         add_child(effects)
+        effects.setup_ambient("dust", 10)
 
         # === 掉落系统 ===
         var drop_script = load("res://scripts/core/drop_system.gd")
@@ -198,6 +232,15 @@ func _build_scene() -> void:
         player.setup_sprite(player_sprite)
         player.pos = Vector2(60, GROUND_Y)
 
+        # 玩家阴影
+        var shadow_tex: Texture2D = load("res://assets/sprites/common/shadow_ellipse.png")
+        player_shadow = TextureRect.new()
+        if shadow_tex:
+                player_shadow.texture = shadow_tex
+        player_shadow.size = Vector2(32, 8)
+        player_shadow.stretch_mode = TextureRect.STRETCH_SCALE
+        add_child(player_shadow)
+
         # 从全局状态恢复
         var state = GameState.get_player_state()
         player.hp = state["hp"]
@@ -247,7 +290,7 @@ func _build_scene() -> void:
 
         # === 版本/操作提示 ===
         var ver = Label.new()
-        ver.text = "v0.13"
+        ver.text = "v0.14"
         ver.position = Vector2(600, 350)
         ver.add_theme_font_size_override("font_size", 7)
         ver.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 0.6))
@@ -267,26 +310,98 @@ func _build_scene() -> void:
         _show_room_name("幽影矿井 - 入口")
 
 func _build_ground() -> void:
-        # 地面（覆盖全部3个房间）
-        var ground_top = ColorRect.new()
-        ground_top.position = Vector2(0, 329)
+        # 地面顶层装饰线
+        var ground_top: ColorRect = ColorRect.new()
+        ground_top.position = Vector2(0, 320)
         ground_top.size = Vector2(LEVEL_WIDTH, 2)
-        ground_top.color = Color(0.35, 0.4, 0.45, 0.8)
+        ground_top.color = Color(0.45, 0.42, 0.50, 0.9)
         add_child(ground_top)
 
-        var ground = ColorRect.new()
-        ground.position = Vector2(0, 330)
-        ground.size = Vector2(LEVEL_WIDTH, 30)
-        ground.color = Color(0.15, 0.17, 0.2, 0.6)
-        add_child(ground)
+        # 地面瓦片纹理
+        var ground_tex: Texture2D = load("res://assets/sprites/tiles/ground_stone_32.png")
+        for x: int in range(0, 1920, 32):
+                var tile: TextureRect = TextureRect.new()
+                if ground_tex:
+                        tile.texture = ground_tex
+                tile.size = Vector2(32, 32)
+                tile.position = Vector2(x, 322)
+                tile.stretch_mode = TextureRect.STRETCH_SCALE
+                add_child(tile)
 
         # 裂缝装饰（分散在3个房间）
         for x in [80, 200, 400, 750, 900, 1050, 1350, 1500, 1700]:
-                var crack = ColorRect.new()
+                var crack: ColorRect = ColorRect.new()
                 crack.position = Vector2(x, 329)
                 crack.size = Vector2(randf_range(8, 20), 2)
                 crack.color = Color(0.1, 0.12, 0.15, 0.5)
                 add_child(crack)
+
+func _build_environment_decor() -> void:
+        # 火把（每个房间2个，共6个）
+        var torch_tex: Texture2D = load("res://assets/sprites/environment/torch_sheet.png")
+        var torch_positions: Array = [100, 500, 740, 1180, 1340, 1800]
+        for tx in torch_positions:
+                var torch: TextureRect = TextureRect.new()
+                if torch_tex:
+                        torch.texture = torch_tex
+                torch.size = Vector2(16, 24)
+                torch.position = Vector2(tx, 180)
+                torch.stretch_mode = TextureRect.STRETCH_SCALE
+                add_child(torch)
+                # 火把光晕
+                var glow: ColorRect = ColorRect.new()
+                glow.size = Vector2(40, 40)
+                glow.position = Vector2(tx - 12, 172)
+                glow.color = Color(1, 0.7, 0.2, 0.05)
+                add_child(glow)
+
+        # 水晶簇（地面上3-4个）
+        var crystal_tex: Texture2D = load("res://assets/sprites/environment/crystal_cluster_sheet.png")
+        var crystal_positions: Array = [160, 550, 870, 1450]
+        for cx in crystal_positions:
+                var crystal: TextureRect = TextureRect.new()
+                if crystal_tex:
+                        crystal.texture = crystal_tex
+                crystal.size = Vector2(20, 18)
+                crystal.position = Vector2(cx, GROUND_Y - 18)
+                crystal.stretch_mode = TextureRect.STRETCH_SCALE
+                add_child(crystal)
+
+        # 钟乳石（天花板上4-5个）
+        var stalactite_tex: Texture2D = load("res://assets/sprites/environment/stalactite_small.png")
+        var stalactite_positions: Array = [120, 350, 800, 1100, 1600]
+        for sx in stalactite_positions:
+                var stalactite: TextureRect = TextureRect.new()
+                if stalactite_tex:
+                        stalactite.texture = stalactite_tex
+                stalactite.size = Vector2(12, 20)
+                stalactite.position = Vector2(sx, 10)
+                stalactite.stretch_mode = TextureRect.STRETCH_SCALE
+                add_child(stalactite)
+
+        # 发光蘑菇（地面上4-6个）
+        var mushroom_tex: Texture2D = load("res://assets/sprites/environment/mushroom_glow_sheet.png")
+        var mushroom_positions: Array = [70, 280, 680, 960, 1380, 1720]
+        for mx in mushroom_positions:
+                var mushroom: TextureRect = TextureRect.new()
+                if mushroom_tex:
+                        mushroom.texture = mushroom_tex
+                mushroom.size = Vector2(14, 12)
+                mushroom.position = Vector2(mx, GROUND_Y - 12)
+                mushroom.stretch_mode = TextureRect.STRETCH_SCALE
+                add_child(mushroom)
+
+        # 蛛网（天花板角落2-3个）
+        var cobweb_tex: Texture2D = load("res://assets/sprites/environment/cobweb.png")
+        var cobweb_positions: Array = [10, 630, 1270]
+        for cwx in cobweb_positions:
+                var cobweb: TextureRect = TextureRect.new()
+                if cobweb_tex:
+                        cobweb.texture = cobweb_tex
+                cobweb.size = Vector2(30, 30)
+                cobweb.position = Vector2(cwx, 5)
+                cobweb.stretch_mode = TextureRect.STRETCH_SCALE
+                add_child(cobweb)
 
 func _build_room_entrance() -> void:
         """房间1：入口 (x: 0-640) - 简单敌人+蝙蝠入门"""
@@ -356,21 +471,32 @@ func _build_room_boss_gate() -> void:
         _build_platform(1700, 260, 80)
 
         # Boss门装饰
-        var gate_arch = ColorRect.new()
+        var gate_arch: ColorRect = ColorRect.new()
         gate_arch.position = Vector2(1830, 220)
         gate_arch.size = Vector2(60, 110)
-        gate_arch.color = Color(0.15, 0.12, 0.2, 0.9)
+        gate_arch.color = Color(0.2, 0.15, 0.28, 0.95)
         add_child(gate_arch)
-        var gate_top = ColorRect.new()
+        var gate_top: ColorRect = ColorRect.new()
         gate_top.position = Vector2(1825, 215)
         gate_top.size = Vector2(70, 8)
-        gate_top.color = Color(0.25, 0.2, 0.35, 0.8)
+        gate_top.color = Color(0.4, 0.3, 0.55, 0.9)
         add_child(gate_top)
+        # 门侧火把装饰
+        var gate_torch_l: ColorRect = ColorRect.new()
+        gate_torch_l.position = Vector2(1825, 245)
+        gate_torch_l.size = Vector2(6, 10)
+        gate_torch_l.color = Color(1, 0.7, 0.2, 0.5)
+        add_child(gate_torch_l)
+        var gate_torch_r: ColorRect = ColorRect.new()
+        gate_torch_r.position = Vector2(1889, 245)
+        gate_torch_r.size = Vector2(6, 10)
+        gate_torch_r.color = Color(1, 0.7, 0.2, 0.5)
+        add_child(gate_torch_r)
         # 门上发光符号
-        var gate_glow = ColorRect.new()
-        gate_glow.position = Vector2(1850, 250)
-        gate_glow.size = Vector2(20, 20)
-        gate_glow.color = Color(0.5, 0.3, 0.8, 0.4)
+        var gate_glow: ColorRect = ColorRect.new()
+        gate_glow.position = Vector2(1848, 248)
+        gate_glow.size = Vector2(24, 24)
+        gate_glow.color = Color(0.6, 0.35, 0.9, 0.5)
         add_child(gate_glow)
 
         # 落石
@@ -389,22 +515,38 @@ func _build_room_boss_gate() -> void:
         _build_portal()
 
 func _build_platform(x: float, y: float, width: float) -> void:
-        var plat = ColorRect.new()
-        plat.position = Vector2(x, y)
-        plat.size = Vector2(width, 6)
-        plat.color = Color(0.25, 0.27, 0.3, 0.8)
-        add_child(plat)
-        # 支撑柱
-        var support = ColorRect.new()
+        # 平台顶部瓦片纹理
+        var plat_tex: Texture2D = load("res://assets/sprites/tiles/platform_stone_32.png")
+        for px: float in range(x, x + width, 32):
+                var tile: TextureRect = TextureRect.new()
+                if plat_tex:
+                        tile.texture = plat_tex
+                tile.size = Vector2(32, 6)
+                tile.position = Vector2(px, y)
+                tile.stretch_mode = TextureRect.STRETCH_SCALE
+                add_child(tile)
+        # 支撑柱（左）
+        var support: ColorRect = ColorRect.new()
         support.position = Vector2(x + 2, y + 6)
-        support.size = Vector2(2, GROUND_Y - y - 6)
-        support.color = Color(0.2, 0.22, 0.25, 0.4)
+        support.size = Vector2(4, GROUND_Y - y - 6)
+        support.color = Color(0.35, 0.32, 0.40, 0.6)
         add_child(support)
-        var support2 = ColorRect.new()
-        support2.position = Vector2(x + width - 4, y + 6)
-        support2.size = Vector2(2, GROUND_Y - y - 6)
-        support2.color = Color(0.2, 0.22, 0.25, 0.4)
+        var support_hl: ColorRect = ColorRect.new()
+        support_hl.position = Vector2(x + 2, y + 6)
+        support_hl.size = Vector2(1, GROUND_Y - y - 6)
+        support_hl.color = Color(0.45, 0.42, 0.50, 0.7)
+        add_child(support_hl)
+        # 支撑柱（右）
+        var support2: ColorRect = ColorRect.new()
+        support2.position = Vector2(x + width - 6, y + 6)
+        support2.size = Vector2(4, GROUND_Y - y - 6)
+        support2.color = Color(0.35, 0.32, 0.40, 0.6)
         add_child(support2)
+        var support2_hl: ColorRect = ColorRect.new()
+        support2_hl.position = Vector2(x + width - 6, y + 6)
+        support2_hl.size = Vector2(1, GROUND_Y - y - 6)
+        support2_hl.color = Color(0.45, 0.42, 0.50, 0.7)
+        add_child(support2_hl)
 
 func _add_trap(x: float) -> void:
         var marker = ColorRect.new()
@@ -416,17 +558,31 @@ func _add_trap(x: float) -> void:
         trap_triggered[rock_traps.size() - 1] = false
 
 func _build_portal() -> void:
+        # 外层大光晕
+        var portal_outer_glow: ColorRect = ColorRect.new()
+        portal_outer_glow.size = Vector2(20, 58)
+        portal_outer_glow.position = portal_pos + Vector2(-4, -54)
+        portal_outer_glow.color = Color(0.3, 0.6, 1.0, 0.15)
+        add_child(portal_outer_glow)
+
         portal = ColorRect.new()
         portal.size = Vector2(12, 50)
         portal.position = portal_pos + Vector2(0, -50)
         portal.color = Color(0.3, 0.6, 1.0, 0.5)
         add_child(portal)
 
-        var portal_border = ColorRect.new()
+        var portal_border: ColorRect = ColorRect.new()
         portal_border.size = Vector2(14, 52)
         portal_border.position = portal_pos + Vector2(-1, -51)
         portal_border.color = Color(0.5, 0.8, 1.0, 0.3)
         add_child(portal_border)
+
+        # 脉冲内层光晕
+        var portal_inner_glow: ColorRect = ColorRect.new()
+        portal_inner_glow.size = Vector2(8, 40)
+        portal_inner_glow.position = portal_pos + Vector2(2, -44)
+        portal_inner_glow.color = Color(0.5, 0.8, 1.0, 0.3)
+        add_child(portal_inner_glow)
 
         portal_label = Label.new()
         portal_label.text = "→Boss"
@@ -900,9 +1056,12 @@ func _cleanup_dead_bats() -> void:
                                 bat.queue_free(); bats.remove_at(i); bat_sprites.remove_at(i)
 
 func _update_visuals() -> void:
-        var shake = camera_offset
+        var shake: Vector2 = camera_offset
         player_sprite.position = player.pos + Vector2(0, -32) + shake
         player_sprite.flip_h = (player.facing < 0)
+        # 玩家阴影
+        player_shadow.position = player.pos + Vector2(-16, -2) + shake
+        player_shadow.visible = player.pos.y >= GROUND_Y - 10
         if player.invincible_timer > 0:
                 player_sprite.visible = int(frame_count / 3) % 2 == 0
         else:
