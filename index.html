@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>代号：传说 - 游戏设计文档</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            max-width: 700px;
+            width: 90%;
+            padding: 48px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            font-size: 28px;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 32px;
+        }
+        .doc-card {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 20px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+            margin-bottom: 16px;
+            transition: all 0.2s;
+            text-decoration: none;
+            color: inherit;
+        }
+        .doc-card:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+        }
+        .doc-icon {
+            font-size: 36px;
+            flex-shrink: 0;
+        }
+        .doc-info h3 {
+            font-size: 16px;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+        .doc-info p {
+            font-size: 13px;
+            color: #aaa;
+            line-height: 1.5;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+        .badge-version { background: #4a6cf7; color: #fff; }
+        .badge-pages { background: #2ea44f; color: #fff; }
+        .footer {
+            text-align: center;
+            margin-top: 32px;
+            font-size: 12px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>代号：传说</h1>
+        <p class="subtitle">2.5D 动作 RPG &middot; Godot 4.6.2 &middot; 游戏设计文档</p>
+
+        <a class="doc-card" href="download/%E4%BB%A3%E5%8F%B7%E4%BC%A0%E8%AF%B4_%E6%B8%B8%E6%88%8F%E8%AE%BE%E8%AE%A1%E6%96%87%E6%A1%A3.pdf">
+            <span class="doc-icon">📄</span>
+            <div class="doc-info">
+                <h3>游戏设计文档 <span class="badge badge-version">Beta v0.36</span></h3>
+                <p>完整设计文档 23 章 — 技术架构 / 8职业体系 / 技能树 / 世界设定 / 怪物Boss / 装备天赋 / 数值框架 / 副本活动 / PVP / 新手引导 / 社交 / UI·UX</p>
+            </div>
+        </a>
+
+        <a class="doc-card" href="https://github.com/wangbei439/glory-chronicle">
+            <span class="doc-icon">💻</span>
+            <div class="doc-info">
+                <h3>代码仓库 <span class="badge badge-pages">GitHub</span></h3>
+                <p>wangbei439/glory-chronicle — 游戏源码 & 设计文档</p>
+            </div>
+        </a>
+
+        <p class="footer">点击文档卡片即可在浏览器中查看 / 下载 PDF</p>
+    </div>
+</body>
+</html>
