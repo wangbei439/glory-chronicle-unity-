@@ -15,6 +15,7 @@ public class Boss : MonoBehaviour
     public event System.Action OnDeath;
 
     private Renderer rend;
+    private Animator anim;
     private HPBarController hpBar;
     private float cooldownTimer = 0f;
 
@@ -22,6 +23,7 @@ public class Boss : MonoBehaviour
     {
         rend = GetComponent<Renderer>();
         rend.material.color = bodyColor;
+        anim = GetComponentInChildren<Animator>();
 
         hpBar = GetComponentInChildren<HPBarController>();
         if (hpBar != null)
@@ -45,6 +47,7 @@ public class Boss : MonoBehaviour
             Vector3 dir = (player.transform.position - transform.position).normalized;
             dir.y = 0;
             transform.position += dir * chaseSpeed * Time.deltaTime;
+            if (anim != null) anim.SetFloat("Speed", 1f);
             transform.LookAt(player.transform.position);
             transform.rotation = Quaternion.Euler(0, transform.rotation.eulerAngles.y, 0);
         }
@@ -52,6 +55,8 @@ public class Boss : MonoBehaviour
         {
             // ¹¥»÷
             cooldownTimer = attackCooldown;
+            if (anim != null) anim.SetTrigger("AttackTrigger");
+            if (anim != null) anim.SetFloat("Speed", 0f);
             PlayerStats playerStats = player.GetComponent<PlayerStats>();
             if (playerStats != null)
             {
@@ -66,6 +71,7 @@ public class Boss : MonoBehaviour
         hp -= amount;
         hp = Mathf.Max(hp, 0);
         StartCoroutine(FlashWhite());
+        if (anim != null) anim.SetTrigger("HurtTrigger");
 
         if (hpBar != null)
             hpBar.UpdateBar(hp);
@@ -77,7 +83,8 @@ public class Boss : MonoBehaviour
                 QuestManager.Instance.OnBossDefeated();
             if (WorldManager.Instance != null)
                 WorldManager.Instance.DefeatBoss("forest_boss");
-            Destroy(gameObject);
+            if (anim != null) anim.SetTrigger("DeathTrigger");
+            Destroy(gameObject, 0.8f);
         }
     }
 

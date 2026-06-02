@@ -27,6 +27,7 @@ public class Dummy : MonoBehaviour
         hp -= amount;
         hp = Mathf.Max(hp, 0);
         StartCoroutine(FlashRed());
+        if (anim != null) anim.SetTrigger("HurtTrigger");
         ShowDamageNumber(amount);
 
         if (hpBar != null)
@@ -37,7 +38,8 @@ public class Dummy : MonoBehaviour
             OnDeath?.Invoke();
             if (QuestManager.Instance != null)
                 QuestManager.Instance.OnEnemyKilled();
-            Destroy(gameObject);
+            if (anim != null) anim.SetTrigger("DeathTrigger");
+            Destroy(gameObject, 0.6f);
         }
     }
 
