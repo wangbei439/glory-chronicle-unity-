@@ -32,13 +32,17 @@ public class HPBarController : MonoBehaviour
             );
         }
     }
+
     void LateUpdate()
     {
-        // 抵消父物体缩放，保持HP条固定大小
-        transform.localScale = new Vector3(1f / transform.lossyScale.x,
-                                           1f / transform.lossyScale.y,
-                                           1f / transform.lossyScale.z);
-        // 修正位置到头顶
-        transform.localPosition = new Vector3(0f, 1f, 0f);
+        // 抵消父物体（敌人根物体）的缩放，保持HP条固定大小
+        Transform parent = transform.parent;
+        if (parent != null)
+        {
+            Vector3 ps = parent.localScale;
+            transform.localScale = new Vector3(1f / ps.x, 1f / ps.y, 1f / ps.z);
+        }
+        // HP条固定在头顶位置
+        transform.localPosition = new Vector3(0f, 0.5f, 0f);
     }
 }

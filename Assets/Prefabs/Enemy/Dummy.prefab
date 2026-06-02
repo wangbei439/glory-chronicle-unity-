@@ -28,12 +28,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1408289497899244814}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0.368, z: 0}
   m_LocalScale: {x: 0.49183, y: 0.08, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 8228272696754584167}
+  m_Father: {fileID: 7571611432196804720}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &1917642652995416421
 MeshFilter:
@@ -215,7 +215,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_Sprite: {fileID: 352893222, guid: ff2bf2e78be284f4f8bf7745d5e47cab, type: 3}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.98742133, g: 0.98742133, b: 0.98742133, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -253,12 +253,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3327241959788601021}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0.36799997, z: -0.01}
   m_LocalScale: {x: 0.49183, y: 0.08, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 8228272696754584167}
+  m_Father: {fileID: 7571611432196804720}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &2575249782795505268
 MeshFilter:
@@ -344,6 +344,53 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2843c8315959f464a9ff5f173868c84c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!1 &4231311769012113494
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7571611432196804720}
+  - component: {fileID: 2892489266821067994}
+  m_Layer: 6
+  m_Name: HPBar
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7571611432196804720
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4231311769012113494}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1201701281739911716}
+  - {fileID: 7554975525163443592}
+  m_Father: {fileID: 8228272696754584167}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2892489266821067994
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4231311769012113494}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c6107d634eea75645b2ed61581644669, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  fillTransform: {fileID: 1201701281739911716}
 --- !u!1 &4639463844422879942
 GameObject:
   m_ObjectHideFlags: 0
@@ -354,7 +401,6 @@ GameObject:
   m_Component:
   - component: {fileID: 8228272696754584167}
   - component: {fileID: 1304727300888970508}
-  - component: {fileID: 8004890310440935908}
   - component: {fileID: 8747228727759711043}
   m_Layer: 6
   m_Name: Dummy
@@ -376,9 +422,8 @@ Transform:
   m_LocalScale: {x: 3, y: 3, z: 0.3}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 7554975525163443592}
-  - {fileID: 1201701281739911716}
   - {fileID: 6191237459689829235}
+  - {fileID: 7571611432196804720}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1304727300888970508
@@ -395,20 +440,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   hp: 100
   maxHp: 100
-  bodyColor: {r: 0.21960786, g: 0.21960786, b: 0.21960786, a: 0}
---- !u!114 &8004890310440935908
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4639463844422879942}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c6107d634eea75645b2ed61581644669, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  fillTransform: {fileID: 1201701281739911716}
+  bodyColor: {r: 1, g: 1, b: 1, a: 1}
 --- !u!65 &8747228727759711043
 BoxCollider:
   m_ObjectHideFlags: 0
