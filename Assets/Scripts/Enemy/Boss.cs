@@ -1,0 +1,107 @@
+using UnityEngine;
+using System.Collections;
+
+public class Boss : MonoBehaviour
+{
+    public int hp = 300;
+    public int maxHp = 300;
+    public int attackDamage = 20;
+    public float attackRange = 3f;
+    public float attackCooldown = 2f;
+    public float chaseSpeed = 3f;
+    public float detectRange = 10f;
+    public Color bodyColor = new Color(0.5f, 0f, 0.8f); // ×ÏÉ«
+
+    public event System.Action OnDeath;
+
+    private Renderer rend;
+    private HPBarController hpBar;
+    private float cooldownTimer = 0f;
+
+    void Start()
+    {
+        rend = GetComponent<Renderer>();
+        rend.material.color = bodyColor;
+
+        hpBar = GetComponentInChildren<HPBarController>();
+        if (hpBar != null)
+            hpBar.Setup(maxHp);
+    }
+
+    void Update()
+    {
+        if (hp <= 0) return;
+
+        cooldownTimer -= Time.deltaTime;
+
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player == null) return;
+
+        float dist = Vector3.Distance(player.transform.position, transform.position);
+
+        if (dist > attackRange && dist <= detectRange)
+        {
+            // ×·»÷
+            Vector3 dir = (player.transform.position - transform.position).normalized;
+            dir.y = 0;
+            transform.position += dir * chaseSpeed * Time.deltaTime;
+            transform.LookAt(player.transform.position);
+            transform.rotation = Quaternion.Euler(0, transform.rotation.eulerAngles.y, 0);
+        }
+        else if (dist <= attackRange && cooldownTimer <= 0)
+        {
+            // ¹¥»÷
+            cooldownTimer = attackCooldown;
+            PlayerStats playerStats = player.GetComponent<PlayerStats>();
+            if (playerStats != null)
+            {
+                playerStats.TakeDamage(attackDamage);
+                ShowFloatText("-" + attackDamage, Color.red, player.transform.position);
+            }
+        }
+    }
+
+    public void TakeDamage(int amount)
+    {
+        hp -= amount;
+        hp = Mathf.Max(hp, 0);
+        StartCoroutine(FlashWhite());
+
+        if (hpBar != null)
+            hpBar.UpdateBar(hp);
+
+        if (hp <= 0)
+        {
+            OnDeath?.Invoke();
+            if (QuestManager.Instance != null)
+                QuestManager.Instance.OnBossDefeated();
+            if (WorldManager.Instance != null)
+                WorldManager.Instance.DefeatBoss("forest_boss");
+            Destroy(gameObject);
+        }
+    }
+
+    IEnumerator FlashWhite()
+    {
+        rend.material.color = Color.white;
+        yield return new WaitForSeconds(0.1f);
+        rend.material.color = bodyColor;
+    }
+
+    void ShowFloatText(string text, Color color, Vector3 pos)
+    {
+        GameObject obj = new GameObject("BossDmgText");
+        obj.transform.position = pos + Vector3.up * 1.5f;
+
+        TextMesh tm = obj.AddComponent<TextMesh>();
+        tm.text = text;
+        tm.fontSize = 8;
+        tm.color = color;
+        tm.alignment = TextAlignment.Center;
+        tm.anchor = TextAnchor.MiddleCenter;
+
+        FloatText ft = obj.AddComponent<FloatText>();
+        ft.floatSpeed = 2f;
+        ft.lifetime = 1f;
+    }
+}
