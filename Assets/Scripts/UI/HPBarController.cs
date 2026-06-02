@@ -32,4 +32,13 @@ public class HPBarController : MonoBehaviour
             );
         }
     }
+    void LateUpdate()
+    {
+        // 抵消父物体缩放，保持HP条固定大小
+        transform.localScale = new Vector3(1f / transform.lossyScale.x,
+                                           1f / transform.lossyScale.y,
+                                           1f / transform.lossyScale.z);
+        // 修正位置到头顶
+        transform.localPosition = new Vector3(0f, 1f, 0f);
+    }
 }

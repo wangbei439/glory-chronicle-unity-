@@ -14,7 +14,7 @@ public class Dummy : MonoBehaviour
 
     void Start()
     {
-        rend = GetComponent<Renderer>();
+        rend = GetComponentInChildren<Renderer>();
         rend.material.color = bodyColor;
         anim = GetComponentInChildren<Animator>();
         hpBar = GetComponentInChildren<HPBarController>();

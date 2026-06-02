@@ -18,10 +18,11 @@ public class Boss : MonoBehaviour
     private Animator anim;
     private HPBarController hpBar;
     private float cooldownTimer = 0f;
+    private bool facingRight = true;
 
     void Start()
     {
-        rend = GetComponent<Renderer>();
+        rend = GetComponentInChildren<Renderer>();
         rend.material.color = bodyColor;
         anim = GetComponentInChildren<Animator>();
 
@@ -47,9 +48,18 @@ public class Boss : MonoBehaviour
             Vector3 dir = (player.transform.position - transform.position).normalized;
             dir.y = 0;
             transform.position += dir * chaseSpeed * Time.deltaTime;
-            if (anim != null) anim.SetFloat("Speed", 1f);
-            transform.LookAt(player.transform.position);
-            transform.rotation = Quaternion.Euler(0, transform.rotation.eulerAngles.y, 0);
+
+            // ·­×ª³¯ÏòÍæ¼Ò
+            if (dir.x > 0 && !facingRight)
+            {
+                facingRight = true;
+                Flip();
+            }
+            else if (dir.x < 0 && facingRight)
+            {
+                facingRight = false;
+                Flip();
+            }
         }
         else if (dist <= attackRange && cooldownTimer <= 0)
         {
@@ -110,5 +120,15 @@ public class Boss : MonoBehaviour
         FloatText ft = obj.AddComponent<FloatText>();
         ft.floatSpeed = 2f;
         ft.lifetime = 1f;
+    }
+    void Flip()
+    {
+        Transform body = transform.Find("Body");
+        if (body != null)
+        {
+            body.localRotation = facingRight
+                ? Quaternion.identity
+                : Quaternion.Euler(0f, 180f, 0f);
+        }
     }
 }
