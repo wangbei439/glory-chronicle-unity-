@@ -11,6 +11,14 @@ public class POI : MonoBehaviour
 
     private bool isDiscovered = false;
 
+    void Start()
+    {
+        if (WorldManager.Instance != null && WorldManager.Instance.IsPOIDiscovered(poiId))
+        {
+            isDiscovered = true;
+        }
+    }
+
     void Update()
     {
         if (isDiscovered) return;

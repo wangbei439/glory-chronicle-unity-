@@ -4,6 +4,12 @@ using System.Collections.Generic;
 public class WorldManager : MonoBehaviour
 {
     public static WorldManager Instance;
+    // 在 WorldManager 类里添加这些方法：
+
+    public HashSet<string> GetDiscoveredPOIs() { return discoveredPOIs; }
+    public HashSet<string> GetUnlockedTeleports() { return unlockedTeleports; }
+    public HashSet<string> GetDefeatedBosses() { return defeatedBosses; }
+    public Dictionary<string, int> GetMaterials() { return materials; }
 
     private HashSet<string> discoveredPOIs = new HashSet<string>();
     private HashSet<string> unlockedTeleports = new HashSet<string>();

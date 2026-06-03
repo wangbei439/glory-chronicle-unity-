@@ -113,6 +113,7 @@ public class TeleportPoint : MonoBehaviour
         }
 
         ShowFloatText("没有可用的传送点", Color.red);
+        if (SaveManager.Instance != null) SaveManager.Instance.Save();
     }
 
     void ShowPrompt(string text)

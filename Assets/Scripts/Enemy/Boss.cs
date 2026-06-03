@@ -25,7 +25,11 @@ public class Boss : MonoBehaviour
         rend = GetComponentInChildren<Renderer>();
         rend.material.color = bodyColor;
         anim = GetComponentInChildren<Animator>();
-
+        anim = GetComponentInChildren<Animator>();
+        if (WorldManager.Instance != null && WorldManager.Instance.IsBossDefeated("forest_boss"))
+        {
+            Destroy(gameObject);
+        }
         hpBar = GetComponentInChildren<HPBarController>();
         if (hpBar != null)
             hpBar.Setup(maxHp);
@@ -96,6 +100,7 @@ public class Boss : MonoBehaviour
             if (anim != null) anim.SetTrigger("DeathTrigger");
             Destroy(gameObject, 0.8f);
         }
+        if (SaveManager.Instance != null) SaveManager.Instance.Save();
     }
 
     IEnumerator FlashWhite()
