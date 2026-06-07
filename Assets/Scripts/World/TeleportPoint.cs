@@ -18,7 +18,6 @@ public class TeleportPoint : MonoBehaviour
     {
         rend = GetComponent<Renderer>();
 
-        // 入口传送点默认激活
         if (teleportId == "entrance_teleport")
         {
             isActivated = true;
@@ -48,7 +47,6 @@ public class TeleportPoint : MonoBehaviour
 
         if (!isActivated)
         {
-            // 未激活：显示激活提示
             if (dist <= activateRange)
             {
                 if (promptObj == null)
@@ -64,7 +62,6 @@ public class TeleportPoint : MonoBehaviour
         }
         else
         {
-            // 已激活：显示传送提示
             if (dist <= activateRange)
             {
                 if (promptObj == null)
@@ -93,40 +90,55 @@ public class TeleportPoint : MonoBehaviour
 
     void TeleportPlayer(GameObject player)
     {
-        // 找到另一个已激活的传送点
         TeleportPoint[] allPoints = FindObjectsOfType<TeleportPoint>();
         foreach (var point in allPoints)
         {
             if (point != this && point.isActivated)
             {
-                // 传送到另一个点
-                CharacterController cc = player.GetComponent<CharacterController>();
-                if (cc != null) cc.enabled = false;
-
-                player.transform.position = point.transform.position + Vector3.forward * 1.5f;
-
-                if (cc != null) cc.enabled = true;
-
-                ShowFloatText("传送到: " + point.teleportName, Color.cyan);
+                StartCoroutine(DoTeleport(player, point));
                 return;
             }
         }
 
         ShowFloatText("没有可用的传送点", Color.red);
+    }
+
+    IEnumerator DoTeleport(GameObject player, TeleportPoint destination)
+    {
+        // 关键修复：禁用CC后，设置位置，等一帧再重新启用CC
+        CharacterController cc = player.GetComponent<CharacterController>();
+        if (cc != null) cc.enabled = false;
+
+        // 传送到目标传送点旁边
+        player.transform.position = destination.transform.position + Vector3.forward * 1.5f;
+
+        // 重置玩家的下落速度，防止传送后继续下落
+        PlayerController pc = player.GetComponent<PlayerController>();
+        if (pc != null) pc.ResetVelocity();
+
+        // 等一帧，让CC内部状态更新
+        yield return null;
+
+        if (cc != null) cc.enabled = true;
+
+        ShowFloatText("传送到: " + destination.teleportName, Color.cyan);
+
         if (SaveManager.Instance != null) SaveManager.Instance.Save();
     }
 
     void ShowPrompt(string text)
     {
-        promptObj = new GameObject("Prompt");
+        promptObj = new GameObject("TeleportPrompt");
         promptObj.transform.position = transform.position + Vector3.up * 1.5f;
-
         TextMesh tm = promptObj.AddComponent<TextMesh>();
         tm.text = text;
-        tm.fontSize = 5;
-        tm.color = Color.white;
+        tm.fontSize = 10;
+        tm.color = Color.yellow;
         tm.alignment = TextAlignment.Center;
         tm.anchor = TextAnchor.MiddleCenter;
+        FloatText ft = promptObj.AddComponent<FloatText>();
+        ft.floatSpeed = 0f;
+        ft.lifetime = 999f;
     }
 
     void HidePrompt()
@@ -142,40 +154,24 @@ public class TeleportPoint : MonoBehaviour
     {
         GameObject obj = new GameObject("TeleportText");
         obj.transform.position = transform.position + Vector3.up * 2f;
-
         TextMesh tm = obj.AddComponent<TextMesh>();
         tm.text = text;
-        tm.fontSize = 6;
+        tm.fontSize = 10;
         tm.color = color;
         tm.alignment = TextAlignment.Center;
         tm.anchor = TextAnchor.MiddleCenter;
-
-        StartCoroutine(FloatAndFade(obj, tm));
-    }
-
-    IEnumerator FloatAndFade(GameObject obj, TextMesh tm)
-    {
-        float timer = 0f;
-        float lifetime = 2f;
-        Vector3 startPos = obj.transform.position;
-
-        while (timer < lifetime)
-        {
-            timer += Time.deltaTime;
-            obj.transform.position = startPos + Vector3.up * (timer * 0.5f);
-
-            Color c = tm.color;
-            c.a = 1f - (timer / lifetime);
-            tm.color = c;
-
-            yield return null;
-        }
-        Destroy(obj);
+        FloatText ft = obj.AddComponent<FloatText>();
+        ft.floatSpeed = 1.5f;
+        ft.lifetime = 1.5f;
     }
 
     void OnDrawGizmosSelected()
     {
-        Gizmos.color = isActivated ? Color.cyan : Color.gray;
+        Gizmos.color = isActivated ? activeColor : inactiveColor;
         Gizmos.DrawWireSphere(transform.position, activateRange);
+    }
+    public bool IsActivated()
+    {
+        return isActivated;
     }
 }

@@ -35,14 +35,17 @@ public class HPBarController : MonoBehaviour
 
     void LateUpdate()
     {
-        // 抵消父物体（敌人根物体）的缩放，保持HP条固定大小
+        // 反向缩放，让血条不受父物体缩放影响
         Transform parent = transform.parent;
         if (parent != null)
         {
             Vector3 ps = parent.localScale;
-            transform.localScale = new Vector3(1f / ps.x, 1f / ps.y, 1f / ps.z);
+            if (ps.x != 0f && ps.y != 0f && ps.z != 0f)
+            {
+                transform.localScale = new Vector3(1f / ps.x, 1f / ps.y, 1f / ps.z);
+            }
         }
-        // HP条固定在头顶位置
-        transform.localPosition = new Vector3(0f, 0.5f, 0f);
+        // 注意：不再设置 transform.localPosition
+        // 因为 HPBarController 挂在 Boss 根对象上，设 localPosition 会把 Boss 拉回原点
     }
 }

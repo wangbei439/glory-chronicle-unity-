@@ -29,18 +29,30 @@ public class Boss : MonoBehaviour
 
     void Start()
     {
-        // ========== 关键修复：删除血条上的 MeshCollider ==========
-        // 场景里 HPBG 和 HPFill 都有 MeshCollider(isTrigger=false)
-        // Boss scale=3,3,3 所以这两个碰撞体被放大3倍，会和玩家 CharacterController 碰撞卡住
+        // ========== 修复碰撞：清理血条上的物理碰撞体 ==========
+        // 场景里 HPBG/HPFill 有 MeshCollider(isTrigger=false)
+        // Boss scale=3,3,3 这些碰撞体放大3倍和玩家CC碰撞导致卡住
         Collider[] allCols = GetComponentsInChildren<Collider>();
         foreach (var col in allCols)
         {
-            // 血条子物体的碰撞体全部删除
-            if (col.gameObject != gameObject)
+            // 只保留 Boss 根节点的碰撞体（改 trigger），血条的全部删
+            if (col.gameObject == gameObject)
             {
-                Debug.Log("[Boss] 删除血条碰撞体: " + col.gameObject.name + " (" + col.GetType().Name + ")");
+                col.isTrigger = true;
+            }
+            else
+            {
                 Destroy(col);
             }
+        }
+
+        // 如果根节点没碰撞体，加一个 trigger 的 BoxCollider 让玩家能检测到
+        if (GetComponent<Collider>() == null)
+        {
+            BoxCollider bc = gameObject.AddComponent<BoxCollider>();
+            bc.isTrigger = true;
+            bc.size = new Vector3(0.5f, 0.5f, 0.5f);
+            bc.center = new Vector3(0f, 0.5f, 0f);
         }
 
         rend = GetComponentInChildren<Renderer>();

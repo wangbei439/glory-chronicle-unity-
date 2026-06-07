@@ -233,6 +233,11 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    public void ResetVelocity()
+    {
+        velocity = Vector3.zero;
+    }
+
     void FlipBody()
     {
         if (bodyTransform != null)
