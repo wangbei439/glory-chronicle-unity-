@@ -10,7 +10,7 @@ public class Boss : MonoBehaviour
     public float attackCooldown = 2f;
     public float chaseSpeed = 3f;
     public float detectRange = 10f;
-    public Color bodyColor = new Color(0.5f, 0f, 0.8f); // 紫色
+    public Color bodyColor = new Color(0.5f, 0f, 0.8f);
 
     public event System.Action OnDeath;
 
@@ -20,86 +20,155 @@ public class Boss : MonoBehaviour
     private float cooldownTimer = 0f;
     private bool facingRight = true;
 
+    private enum BossState { Idle, Chase, Attack, Hurt, Dead }
+    private BossState currentState = BossState.Idle;
+    private float stateTimer = 0f;
+
+    private GameObject playerCache;
+    private float findTimer = 0f;
+
     void Start()
     {
+        // ========== 关键修复：删除血条上的 MeshCollider ==========
+        // 场景里 HPBG 和 HPFill 都有 MeshCollider(isTrigger=false)
+        // Boss scale=3,3,3 所以这两个碰撞体被放大3倍，会和玩家 CharacterController 碰撞卡住
+        Collider[] allCols = GetComponentsInChildren<Collider>();
+        foreach (var col in allCols)
+        {
+            // 血条子物体的碰撞体全部删除
+            if (col.gameObject != gameObject)
+            {
+                Debug.Log("[Boss] 删除血条碰撞体: " + col.gameObject.name + " (" + col.GetType().Name + ")");
+                Destroy(col);
+            }
+        }
+
         rend = GetComponentInChildren<Renderer>();
         rend.material.color = bodyColor;
         anim = GetComponentInChildren<Animator>();
-        anim = GetComponentInChildren<Animator>();
+
         if (WorldManager.Instance != null && WorldManager.Instance.IsBossDefeated("forest_boss"))
         {
             Destroy(gameObject);
+            return;
         }
+
         hpBar = GetComponentInChildren<HPBarController>();
-        if (hpBar != null)
-            hpBar.Setup(maxHp);
+        if (hpBar != null) hpBar.Setup(maxHp);
     }
 
     void Update()
     {
-        if (hp <= 0) return;
+        if (currentState == BossState.Dead) return;
 
         cooldownTimer -= Time.deltaTime;
+        stateTimer -= Time.deltaTime;
 
-        GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player == null) return;
-
-        float dist = Vector3.Distance(player.transform.position, transform.position);
-
-        if (dist > attackRange && dist <= detectRange)
+        findTimer -= Time.deltaTime;
+        if (playerCache == null || findTimer <= 0f)
         {
-            // 追击
-            Vector3 dir = (player.transform.position - transform.position).normalized;
-            dir.y = 0;
-            transform.position += dir * chaseSpeed * Time.deltaTime;
+            playerCache = GameObject.FindGameObjectWithTag("Player");
+            findTimer = 0.5f;
+        }
 
-            // 翻转朝向玩家
-            if (dir.x > 0 && !facingRight)
-            {
-                facingRight = true;
-                Flip();
-            }
-            else if (dir.x < 0 && facingRight)
-            {
-                facingRight = false;
-                Flip();
-            }
-        }
-        else if (dist <= attackRange && cooldownTimer <= 0)
+        if (playerCache == null)
         {
-            // 攻击
-            cooldownTimer = attackCooldown;
-            if (anim != null) anim.SetTrigger("AttackTrigger");
-            if (anim != null) anim.SetFloat("Speed", 0f);
-            PlayerStats playerStats = player.GetComponent<PlayerStats>();
-            if (playerStats != null)
-            {
-                playerStats.TakeDamage(attackDamage);
-                ShowFloatText("-" + attackDamage, Color.red, player.transform.position);
-            }
+            SetAnimSpeed(0f);
+            return;
         }
+
+        float distX = Mathf.Abs(playerCache.transform.position.x - transform.position.x);
+        float dirX = playerCache.transform.position.x - transform.position.x;
+
+        switch (currentState)
+        {
+            case BossState.Idle:
+                SetAnimSpeed(0f);
+                if (distX <= detectRange)
+                    currentState = BossState.Chase;
+                break;
+
+            case BossState.Chase:
+                {
+                    float moveDir = dirX > 0f ? 1f : -1f;
+                    transform.position += new Vector3(moveDir * chaseSpeed * Time.deltaTime, 0f, 0f);
+                    SetAnimSpeed(1f);
+
+                    if (moveDir > 0f && !facingRight) { facingRight = true; Flip(); }
+                    if (moveDir < 0f && facingRight) { facingRight = false; Flip(); }
+
+                    if (distX <= attackRange && cooldownTimer <= 0f)
+                    {
+                        currentState = BossState.Attack;
+                        stateTimer = 0.7f;
+                        cooldownTimer = attackCooldown;
+                        SetAnimSpeed(0f);
+                        if (anim != null) anim.SetTrigger("AttackTrigger");
+
+                        PlayerStats ps = playerCache.GetComponent<PlayerStats>();
+                        if (ps != null)
+                        {
+                            ps.TakeDamage(attackDamage);
+                            ShowFloatText("-" + attackDamage, Color.red, playerCache.transform.position);
+                        }
+                    }
+                    else if (distX > detectRange * 1.3f)
+                    {
+                        currentState = BossState.Idle;
+                    }
+                    break;
+                }
+
+            case BossState.Attack:
+                SetAnimSpeed(0f);
+                if (dirX > 0f && !facingRight) { facingRight = true; Flip(); }
+                if (dirX < 0f && facingRight) { facingRight = false; Flip(); }
+                if (stateTimer <= 0f)
+                    currentState = BossState.Chase;
+                break;
+
+            case BossState.Hurt:
+                SetAnimSpeed(0f);
+                if (stateTimer <= 0f)
+                    currentState = BossState.Chase;
+                break;
+        }
+    }
+
+    private void SetAnimSpeed(float speed)
+    {
+        if (anim != null) anim.SetFloat("Speed", speed);
     }
 
     public void TakeDamage(int amount)
     {
+        if (currentState == BossState.Dead) return;
+
         hp -= amount;
         hp = Mathf.Max(hp, 0);
         StartCoroutine(FlashWhite());
-        if (anim != null) anim.SetTrigger("HurtTrigger");
 
-        if (hpBar != null)
-            hpBar.UpdateBar(hp);
+        if (hpBar != null) hpBar.UpdateBar(hp);
 
         if (hp <= 0)
         {
+            currentState = BossState.Dead;
             OnDeath?.Invoke();
             if (QuestManager.Instance != null)
                 QuestManager.Instance.OnBossDefeated();
             if (WorldManager.Instance != null)
                 WorldManager.Instance.DefeatBoss("forest_boss");
-            if (anim != null) anim.SetTrigger("DeathTrigger");
-            Destroy(gameObject, 0.8f);
+            if (anim != null) { anim.SetTrigger("DeathTrigger"); SetAnimSpeed(0f); }
+            Collider[] cols = GetComponentsInChildren<Collider>();
+            foreach (var c in cols) c.enabled = false;
+            Destroy(gameObject, 1.5f);
+            return;
         }
+
+        if (anim != null) anim.SetTrigger("HurtTrigger");
+        currentState = BossState.Hurt;
+        stateTimer = 0.25f;
+
         if (SaveManager.Instance != null) SaveManager.Instance.Save();
     }
 
@@ -114,26 +183,21 @@ public class Boss : MonoBehaviour
     {
         GameObject obj = new GameObject("BossDmgText");
         obj.transform.position = pos + Vector3.up * 1.5f;
-
         TextMesh tm = obj.AddComponent<TextMesh>();
         tm.text = text;
         tm.fontSize = 8;
         tm.color = color;
         tm.alignment = TextAlignment.Center;
         tm.anchor = TextAnchor.MiddleCenter;
-
         FloatText ft = obj.AddComponent<FloatText>();
         ft.floatSpeed = 2f;
         ft.lifetime = 1f;
     }
+
     void Flip()
     {
         Transform body = transform.Find("Body");
         if (body != null)
-        {
-            body.localRotation = facingRight
-                ? Quaternion.identity
-                : Quaternion.Euler(0f, 180f, 0f);
-        }
+            body.localRotation = facingRight ? Quaternion.identity : Quaternion.Euler(0f, 180f, 0f);
     }
 }
