@@ -1,5 +1,4 @@
 using UnityEngine;
-using System.Collections;
 
 public class TeleportPoint : MonoBehaviour
 {
@@ -13,6 +12,9 @@ public class TeleportPoint : MonoBehaviour
     private bool isActivated = false;
     private Renderer rend;
     private GameObject promptObj;
+
+    // 静态锁：防止同一帧多个传送点同时触发
+    private static bool isTeleportLocked = false;
 
     void Start()
     {
@@ -67,7 +69,7 @@ public class TeleportPoint : MonoBehaviour
                 if (promptObj == null)
                     ShowPrompt("[E] 传送");
 
-                if (Input.GetKeyDown(KeyCode.E))
+                if (Input.GetKeyDown(KeyCode.E) && !isTeleportLocked)
                     TeleportPlayer(player);
             }
             else
@@ -90,40 +92,52 @@ public class TeleportPoint : MonoBehaviour
 
     void TeleportPlayer(GameObject player)
     {
+        // 上锁，防止同帧另一个传送点也触发
+        isTeleportLocked = true;
+
         TeleportPoint[] allPoints = FindObjectsOfType<TeleportPoint>();
+
         foreach (var point in allPoints)
         {
             if (point != this && point.isActivated)
             {
-                StartCoroutine(DoTeleport(player, point));
+                DoTeleport(player, point);
                 return;
             }
         }
 
         ShowFloatText("没有可用的传送点", Color.red);
+        isTeleportLocked = false;
     }
 
-    IEnumerator DoTeleport(GameObject player, TeleportPoint destination)
+    void DoTeleport(GameObject player, TeleportPoint destination)
     {
-        // 关键修复：禁用CC后，设置位置，等一帧再重新启用CC
-        CharacterController cc = player.GetComponent<CharacterController>();
-        if (cc != null) cc.enabled = false;
-
-        // 传送到目标传送点旁边
-        player.transform.position = destination.transform.position + Vector3.forward * 1.5f;
-
-        // 重置玩家的下落速度，防止传送后继续下落
         PlayerController pc = player.GetComponent<PlayerController>();
-        if (pc != null) pc.ResetVelocity();
 
-        // 等一帧，让CC内部状态更新
-        yield return null;
+        if (pc != null) pc.BeginTeleport();
 
-        if (cc != null) cc.enabled = true;
+        player.transform.position = destination.transform.position;
+        Physics.SyncTransforms();
+
+        if (pc != null)
+        {
+            pc.ResetVelocity();
+            pc.EndTeleport();
+        }
+
+        Debug.Log("[Teleport] 传送到: " + destination.teleportName + " pos=" + player.transform.position);
 
         ShowFloatText("传送到: " + destination.teleportName, Color.cyan);
 
         if (SaveManager.Instance != null) SaveManager.Instance.Save();
+
+        // 延迟解锁，防止到达后立刻又被传送
+        Invoke("UnlockTeleport", 0.5f);
+    }
+
+    void UnlockTeleport()
+    {
+        isTeleportLocked = false;
     }
 
     void ShowPrompt(string text)
@@ -170,6 +184,7 @@ public class TeleportPoint : MonoBehaviour
         Gizmos.color = isActivated ? activeColor : inactiveColor;
         Gizmos.DrawWireSphere(transform.position, activateRange);
     }
+
     public bool IsActivated()
     {
         return isActivated;

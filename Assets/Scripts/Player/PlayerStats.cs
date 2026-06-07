@@ -17,12 +17,9 @@ public class PlayerStats : MonoBehaviour
             if (anim != null) anim.SetTrigger("DeathTrigger");
             Debug.Log("玩家阵亡!");
             hp = maxHp;
-
-            // 复活到最近的已激活传送点，而不是固定中心点
             RespawnAtTeleportPoint();
-
-            Debug.Log("已复活");
             if (anim != null) anim.SetTrigger("IdleTrigger");
+            Debug.Log("已复活");
         }
         else
         {
@@ -32,6 +29,10 @@ public class PlayerStats : MonoBehaviour
 
     void RespawnAtTeleportPoint()
     {
+        PlayerController pc = GetComponent<PlayerController>();
+
+        if (pc != null) pc.BeginTeleport();
+
         TeleportPoint[] allPoints = FindObjectsOfType<TeleportPoint>();
         TeleportPoint nearest = null;
         float minDist = float.MaxValue;
@@ -50,18 +51,16 @@ public class PlayerStats : MonoBehaviour
         }
 
         if (nearest != null)
-        {
-            CharacterController cc = GetComponent<CharacterController>();
-            if (cc != null) cc.enabled = false;
-            transform.position = nearest.transform.position + Vector3.forward * 1.5f;
-            PlayerController pc = GetComponent<PlayerController>();
-            if (pc != null) pc.ResetVelocity();
-            if (cc != null) cc.enabled = true;
-        }
+            transform.position = nearest.transform.position;
         else
-        {
-            // 没有激活的传送点，才用默认位置
             transform.position = Vector3.up;
+
+        Physics.SyncTransforms();
+
+        if (pc != null)
+        {
+            pc.ResetVelocity();
+            pc.EndTeleport();
         }
     }
 }

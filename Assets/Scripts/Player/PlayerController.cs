@@ -31,6 +31,8 @@ public class PlayerController : MonoBehaviour
     private CameraFollow camFollow;
     private Animator anim;
 
+    private bool isTeleporting = false;
+
     void Start()
     {
         cc = GetComponent<CharacterController>();
@@ -44,6 +46,8 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
+        if (isTeleporting) return;
+
         HandleGravity();
         HandleDodge();
         HandleMovement();
@@ -53,7 +57,7 @@ public class PlayerController : MonoBehaviour
 
     void HandleGravity()
     {
-        if (cc.isGrounded && velocity.y < 0)
+        if (cc != null && cc.isGrounded && velocity.y < 0)
             velocity.y = -2f;
         else
             velocity.y += gravity * Time.deltaTime;
@@ -67,8 +71,11 @@ public class PlayerController : MonoBehaviour
         if (isDodging)
         {
             dodgeTimer -= Time.deltaTime;
-            cc.Move(dodgeDir * dodgeSpeed * Time.deltaTime);
-            cc.Move(velocity * Time.deltaTime);
+            if (cc != null)
+            {
+                cc.Move(dodgeDir * dodgeSpeed * Time.deltaTime);
+                cc.Move(velocity * Time.deltaTime);
+            }
 
             if (dodgeTimer <= 0)
             {
@@ -91,7 +98,6 @@ public class PlayerController : MonoBehaviour
             else
                 dodgeDir = facingRight ? Vector3.right : Vector3.left;
 
-            // 闪避时半透明
             if (bodyRenderer != null)
             {
                 Color c = bodyRenderer.material.color;
@@ -100,7 +106,6 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        // 闪避结束恢复
         if (!isDodging && bodyRenderer != null && bodyRenderer.material.color.a < 1f)
         {
             Color c = bodyRenderer.material.color;
@@ -122,11 +127,11 @@ public class PlayerController : MonoBehaviour
         if (dir.magnitude > 0f)
         {
             Vector3 move = dir * moveSpeed;
-            cc.Move(move * Time.deltaTime);
+            if (cc != null) cc.Move(move * Time.deltaTime);
             if (anim != null) anim.SetFloat("Speed", dir.magnitude);
         }
 
-        cc.Move(velocity * Time.deltaTime);
+        if (cc != null) cc.Move(velocity * Time.deltaTime);
     }
 
     void HandleAttack()
@@ -177,11 +182,8 @@ public class PlayerController : MonoBehaviour
 
             if (hitSomething)
             {
-                // 命中时震屏
                 if (camFollow != null)
                     camFollow.Shake(0.15f, 0.2f);
-
-                // 命中时顿帧
                 StartCoroutine(Hitstop(0.06f));
             }
         }
@@ -207,15 +209,11 @@ public class PlayerController : MonoBehaviour
 
     void PushBack(Transform target)
     {
-        // 击退效果：给敌人一个方向推力
         Vector3 pushDir = (target.position - transform.position).normalized;
         pushDir.y = 0;
-
         CharacterController targetCC = target.GetComponent<CharacterController>();
         if (targetCC != null)
-        {
             targetCC.Move(pushDir * 0.5f);
-        }
     }
 
     void FaceDirection()
@@ -233,11 +231,6 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    public void ResetVelocity()
-    {
-        velocity = Vector3.zero;
-    }
-
     void FlipBody()
     {
         if (bodyTransform != null)
@@ -246,5 +239,25 @@ public class PlayerController : MonoBehaviour
                 ? Quaternion.identity
                 : Quaternion.Euler(0f, 180f, 0f);
         }
+    }
+
+    public void ResetVelocity()
+    {
+        velocity = Vector3.zero;
+    }
+
+    // 传送开始：标记+重置速度，不操作CC
+    public void BeginTeleport()
+    {
+        isTeleporting = true;
+        velocity = Vector3.zero;
+    }
+
+    // 传送结束：取消标记，强制CC同步新位置
+    public void EndTeleport()
+    {
+        isTeleporting = false;
+        // 强制CC用Move更新内部缓存位置
+        if (cc != null) cc.Move(Vector3.zero);
     }
 }
