@@ -1,0 +1,78 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 682a3fd42f1a69740b13715cdc8f241b, type: 3}
+  m_Name: Region_CorruptedShrine
+  m_EditorClassIdentifier: 
+  regionId: corrupted_shrine
+  regionName: "\u8150\u5316\u795E\u6BBF"
+  center: {x: 10, y: 0, z: 110}
+  radius: 20
+  regionType: 6
+  groundMaterial: {fileID: 0}
+  groundY: 0
+  dangerLevel: 5
+  structures:
+  - prefab: {fileID: 0}
+    minScale: 1.2
+    maxScale: 1.5
+    needsCollider: 1
+    randomRotation: 0
+    minCount: 1
+    maxCount: 1
+    placementMode: 4
+    clusterRadius: 3
+    minDistanceFromCenter: 3
+    maxDistanceFromCenter: 0
+  - prefab: {fileID: 0}
+    minScale: 0.9
+    maxScale: 1.5
+    needsCollider: 1
+    randomRotation: 1
+    minCount: 4
+    maxCount: 8
+    placementMode: 2
+    clusterRadius: 3
+    minDistanceFromCenter: 8
+    maxDistanceFromCenter: 14
+  props:
+  - prefab: {fileID: 0}
+    minScale: 0.6
+    maxScale: 1.2
+    needsCollider: 1
+    randomRotation: 1
+    minCount: 4
+    maxCount: 8
+    placementMode: 0
+    clusterRadius: 3
+    minDistanceFromCenter: 5
+    maxDistanceFromCenter: 0
+  - prefab: {fileID: 0}
+    minScale: 1
+    maxScale: 1.5
+    needsCollider: 1
+    randomRotation: 0
+    minCount: 2
+    maxCount: 4
+    placementMode: 2
+    clusterRadius: 3
+    minDistanceFromCenter: 10
+    maxDistanceFromCenter: 16
+  natureObjects: []
+  decorations: []
+  structureDensity: 0.7
+  propDensity: 0.5
+  natureDensity: 0.3
+  decorationDensity: 0.2
+  connectedRegions:
+  - spore_jungle
+  pathWidth: 4
+  seed: 67890

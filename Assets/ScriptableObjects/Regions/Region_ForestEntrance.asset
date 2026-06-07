@@ -1,0 +1,82 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 682a3fd42f1a69740b13715cdc8f241b, type: 3}
+  m_Name: Region_ForestEntrance
+  m_EditorClassIdentifier: 
+  regionId: forest_entrance
+  regionName: "\u5E7D\u6697\u68EE\u6797\u5916\u73AF"
+  center: {x: 0, y: 0, z: 30}
+  radius: 25
+  regionType: 1
+  groundMaterial: {fileID: 0}
+  groundY: 0
+  dangerLevel: 2
+  structures: []
+  props: []
+  natureObjects:
+  - prefab: {fileID: 0}
+    minScale: 0.8
+    maxScale: 1.5
+    needsCollider: 1
+    randomRotation: 1
+    minCount: 8
+    maxCount: 15
+    placementMode: 0
+    clusterRadius: 3
+    minDistanceFromCenter: 5
+    maxDistanceFromCenter: 0
+  - prefab: {fileID: 0}
+    minScale: 0.5
+    maxScale: 1.2
+    needsCollider: 1
+    randomRotation: 1
+    minCount: 5
+    maxCount: 10
+    placementMode: 0
+    clusterRadius: 3
+    minDistanceFromCenter: 0
+    maxDistanceFromCenter: 0
+  - prefab: {fileID: 0}
+    minScale: 0.6
+    maxScale: 1.3
+    needsCollider: 0
+    randomRotation: 1
+    minCount: 4
+    maxCount: 8
+    placementMode: 1
+    clusterRadius: 2
+    minDistanceFromCenter: 0
+    maxDistanceFromCenter: 0
+  decorations:
+  - prefab: {fileID: 0}
+    minScale: 0.5
+    maxScale: 1.5
+    needsCollider: 0
+    randomRotation: 1
+    minCount: 10
+    maxCount: 20
+    placementMode: 0
+    clusterRadius: 3
+    minDistanceFromCenter: 0
+    maxDistanceFromCenter: 0
+  structureDensity: 0.2
+  propDensity: 0.3
+  natureDensity: 0.8
+  decorationDensity: 0.7
+  connectedRegions:
+  - hub
+  - forest_clearing
+  - deadwood
+  - mossy_path
+  - misty_trail
+  pathWidth: 4
+  seed: 23456

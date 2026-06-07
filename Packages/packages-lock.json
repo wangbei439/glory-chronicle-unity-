@@ -41,6 +41,16 @@
       "dependencies": {},
       "url": "https://packages.unity.cn"
     },
+    "com.unity.collections": {
+      "version": "1.2.4",
+      "depth": 1,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.burst": "1.6.6",
+        "com.unity.test-framework": "1.1.31"
+      },
+      "url": "https://packages.unity.cn"
+    },
     "com.unity.ext.nunit": {
       "version": "1.0.6",
       "depth": 1,
@@ -184,6 +194,20 @@
         "com.unity.modules.jsonserialize": "1.0.0"
       },
       "url": "https://packages.unity.cn"
+    },
+    "org.khronos.unitygltf": {
+      "version": "file:E:/UnityGLTF-main/UnityGLTF-main",
+      "depth": 0,
+      "source": "local",
+      "dependencies": {
+        "com.unity.nuget.newtonsoft-json": "3.2.1",
+        "com.unity.modules.audio": "1.0.0",
+        "com.unity.modules.imageconversion": "1.0.0",
+        "com.unity.modules.particlesystem": "1.0.0",
+        "com.unity.shadergraph": "14.0.11",
+        "com.unity.mathematics": "1.2.6",
+        "com.unity.collections": "1.2.4"
+      }
     },
     "com.unity.modules.ai": {
       "version": "1.0.0",
