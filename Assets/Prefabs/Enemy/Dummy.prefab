@@ -394,7 +394,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   hp: 100
   maxHp: 100
+  attackDamage: 10
   bodyColor: {r: 1, g: 1, b: 1, a: 1}
+  detectRange: 4
+  chaseSpeed: 2.5
+  attackRange: 1
+  attackCooldown: 1.5
+  loseSightRange: 10
 --- !u!65 &8747228727759711043
 BoxCollider:
   m_ObjectHideFlags: 0

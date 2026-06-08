@@ -183,15 +183,17 @@ public class QuestManager : MonoBehaviour
     void ShowFloatText(string text, Color color)
     {
         GameObject obj = new GameObject("QuestText");
-        obj.transform.position = GameObject.FindGameObjectWithTag("Player").transform.position + Vector3.up * 2.5f;
-
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        Vector3 pos = player != null ? player.transform.position + Vector3.up * 2.5f : Vector3.up * 3f;
+        obj.transform.position = pos;
+        obj.transform.localScale = Vector3.one * 0.5f;
         TextMesh tm = obj.AddComponent<TextMesh>();
         tm.text = text;
-        tm.fontSize = 5;
+        tm.fontSize = 80;
         tm.color = color;
         tm.alignment = TextAlignment.Center;
         tm.anchor = TextAnchor.MiddleCenter;
-
+        tm.characterSize = 0.1f;
         StartCoroutine(FloatAndFade(obj, tm, 2f));
     }
 

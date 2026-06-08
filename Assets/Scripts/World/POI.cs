@@ -47,14 +47,14 @@ public class POI : MonoBehaviour
     {
         GameObject obj = new GameObject("DiscoverText");
         obj.transform.position = transform.position + Vector3.up * 2f;
-
+        obj.transform.localScale = Vector3.one * 0.5f;
         TextMesh tm = obj.AddComponent<TextMesh>();
         tm.text = "·¢ÏÖ: " + poiName;
-        tm.fontSize = 6;
+        tm.fontSize = 80;
         tm.color = Color.cyan;
         tm.alignment = TextAlignment.Center;
         tm.anchor = TextAnchor.MiddleCenter;
-
+        tm.characterSize = 0.1f;
         StartCoroutine(FloatAndFade(obj, tm));
     }
 

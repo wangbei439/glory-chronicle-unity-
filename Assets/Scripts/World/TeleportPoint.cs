@@ -144,12 +144,14 @@ public class TeleportPoint : MonoBehaviour
     {
         promptObj = new GameObject("TeleportPrompt");
         promptObj.transform.position = transform.position + Vector3.up * 1.5f;
+        promptObj.transform.localScale = Vector3.one * 0.5f;
         TextMesh tm = promptObj.AddComponent<TextMesh>();
         tm.text = text;
-        tm.fontSize = 10;
+        tm.fontSize = 80;
         tm.color = Color.yellow;
         tm.alignment = TextAlignment.Center;
         tm.anchor = TextAnchor.MiddleCenter;
+        tm.characterSize = 0.1f;
         FloatText ft = promptObj.AddComponent<FloatText>();
         ft.floatSpeed = 0f;
         ft.lifetime = 999f;
@@ -168,12 +170,14 @@ public class TeleportPoint : MonoBehaviour
     {
         GameObject obj = new GameObject("TeleportText");
         obj.transform.position = transform.position + Vector3.up * 2f;
+        obj.transform.localScale = Vector3.one * 0.5f;
         TextMesh tm = obj.AddComponent<TextMesh>();
         tm.text = text;
-        tm.fontSize = 10;
+        tm.fontSize = 80;
         tm.color = color;
         tm.alignment = TextAlignment.Center;
         tm.anchor = TextAnchor.MiddleCenter;
+        tm.characterSize = 0.1f;
         FloatText ft = obj.AddComponent<FloatText>();
         ft.floatSpeed = 1.5f;
         ft.lifetime = 1.5f;

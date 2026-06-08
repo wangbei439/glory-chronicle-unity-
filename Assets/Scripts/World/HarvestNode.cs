@@ -53,15 +53,17 @@ public class HarvestNode : MonoBehaviour
 
     void ShowPrompt()
     {
+        if (promptObj != null) return;
         promptObj = new GameObject("Prompt");
-        promptObj.transform.position = transform.position + Vector3.up * 1.2f;
-
+        promptObj.transform.position = transform.position + Vector3.up * 1.5f;
+        promptObj.transform.localScale = Vector3.one * 0.5f;
         TextMesh tm = promptObj.AddComponent<TextMesh>();
         tm.text = "[E] ²É¼¯";
-        tm.fontSize = 5;
+        tm.fontSize = 80;
         tm.color = Color.white;
         tm.alignment = TextAlignment.Center;
         tm.anchor = TextAnchor.MiddleCenter;
+        tm.characterSize = 0.1f;
     }
 
     void Collect()
@@ -88,15 +90,15 @@ public class HarvestNode : MonoBehaviour
     void ShowCollectText()
     {
         GameObject obj = new GameObject("CollectText");
-        obj.transform.position = transform.position + Vector3.up * 1.5f;
-
+        obj.transform.position = transform.position + Vector3.up * 2f;
+        obj.transform.localScale = Vector3.one * 0.5f;
         TextMesh tm = obj.AddComponent<TextMesh>();
         tm.text = "+1 " + itemName;
-        tm.fontSize = 6;
+        tm.fontSize = 80;
         tm.color = Color.yellow;
         tm.alignment = TextAlignment.Center;
         tm.anchor = TextAnchor.MiddleCenter;
-
+        tm.characterSize = 0.1f;
         StartCoroutine(FloatAndFade(obj, tm));
     }
 

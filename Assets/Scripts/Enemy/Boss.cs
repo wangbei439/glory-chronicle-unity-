@@ -195,12 +195,14 @@ public class Boss : MonoBehaviour
     {
         GameObject obj = new GameObject("BossDmgText");
         obj.transform.position = pos + Vector3.up * 1.5f;
+        obj.transform.localScale = Vector3.one * 0.5f;
         TextMesh tm = obj.AddComponent<TextMesh>();
         tm.text = text;
-        tm.fontSize = 8;
+        tm.fontSize = 80;
         tm.color = color;
         tm.alignment = TextAlignment.Center;
         tm.anchor = TextAnchor.MiddleCenter;
+        tm.characterSize = 0.1f;
         FloatText ft = obj.AddComponent<FloatText>();
         ft.floatSpeed = 2f;
         ft.lifetime = 1f;

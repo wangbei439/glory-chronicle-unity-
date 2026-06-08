@@ -59,29 +59,31 @@ public class HubNPC : MonoBehaviour
 
     void ShowPrompt()
     {
+        if (promptObj != null) return;
         promptObj = new GameObject("Prompt");
         promptObj.transform.position = transform.position + Vector3.up * 1.8f;
-
+        promptObj.transform.localScale = Vector3.one * 0.5f;
         TextMesh tm = promptObj.AddComponent<TextMesh>();
         tm.text = "[E] ¶Ô»°";
-        tm.fontSize = 5;
+        tm.fontSize = 80;
         tm.color = Color.white;
         tm.alignment = TextAlignment.Center;
         tm.anchor = TextAnchor.MiddleCenter;
+        tm.characterSize = 0.1f;
     }
 
     void ShowFloatText(string text, Color color)
     {
         GameObject obj = new GameObject("NPCText");
         obj.transform.position = transform.position + Vector3.up * 2.5f;
-
+        obj.transform.localScale = Vector3.one * 0.5f;
         TextMesh tm = obj.AddComponent<TextMesh>();
         tm.text = text;
-        tm.fontSize = 5;
+        tm.fontSize = 80;
         tm.color = color;
         tm.alignment = TextAlignment.Center;
         tm.anchor = TextAnchor.MiddleCenter;
-
+        tm.characterSize = 0.1f;
         StartCoroutine(FloatAndFade(obj, tm));
     }
 
